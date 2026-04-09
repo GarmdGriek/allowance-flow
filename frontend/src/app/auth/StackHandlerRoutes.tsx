@@ -339,10 +339,12 @@ export const StackHandlerRoutes = () => {
           onClick={async () => {
             const result = await authClient.signIn.social({
               provider: "google",
-              callbackURL: window.location.origin + next,
+              callbackURL: window.location.origin + "/",
             });
             if (result?.error) {
               setError(result.error.message || JSON.stringify(result.error));
+            } else if ((result?.data as any)?.url) {
+              window.location.href = (result.data as any).url;
             }
           }}
         >
