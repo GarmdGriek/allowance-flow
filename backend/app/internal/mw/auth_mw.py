@@ -112,6 +112,11 @@ def validate_token(
             audit_log(f"Failed to get signing key {e}")
         return None
 
+    # Skip audience verification when no audience is configured
+    if expected_audience == "__no_audience__":
+        options = (options or {}) | {"verify_aud": False}
+        expected_audience = None
+
     try:
         payload = jwt.decode(
             token,
@@ -159,6 +164,10 @@ def validate_token(
 def determine_expected_audience(
     token_aud: str | None, auth_cfg: AuthConfig, url: URL
 ) -> str | None:
+    # If auth config has no audience requirement, skip audience validation
+    if auth_cfg.audience is None and len(auth_cfg.audiences) == 0:
+        return "__no_audience__"
+
     if not token_aud:
         return None
 

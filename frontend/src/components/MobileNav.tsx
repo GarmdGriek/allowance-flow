@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { useTranslation } from "react-i18next";
-import { stackClientApp } from "app/auth";
+import { authClient } from "app/auth";
 
 interface Props {
   userRole: "parent" | "child";
@@ -21,7 +21,7 @@ export function MobileNav({ userRole, isPreviewMode, onPreviewClick, onExitPrevi
 
   const handleSignOut = async () => {
     setOpen(false);
-    await stackClientApp.signOut();
+    await authClient.signOut();
   };
 
   const handleNavigate = (path: string) => {

@@ -7,7 +7,7 @@
 import React from "react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useUser } from "@stackframe/react";
+import { useUserGuardContext } from "app/auth";
 import { DollarSign, CheckCircle, Clock, XCircle, Plus, User, Settings, Repeat, Eye, Edit2, Check, X, Copy } from "lucide-react";
 import { apiClient } from "app";
 import { Button } from "@/components/ui/button";
@@ -60,7 +60,7 @@ interface Child {
 
 export default function App() {
   const navigate = useNavigate();
-  const user = useUser();
+  const { user } = useUserGuardContext();
   const { t } = useTranslation();
   const [isCheckingProfile, setIsCheckingProfile] = useState(true);
   const [userRole, setUserRole] = useState<UserRole>("parent");

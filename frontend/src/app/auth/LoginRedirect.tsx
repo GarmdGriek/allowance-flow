@@ -1,6 +1,6 @@
-import { useStackApp } from "@stackframe/react";
 import { Navigate } from "react-router-dom";
 import { identify } from "app/analytics";
+import { authClient } from "./neon-auth-client";
 
 const popFromLocalStorage = (key: string): string | null => {
   if (typeof window !== "undefined" && window.localStorage) {
@@ -13,16 +13,16 @@ const popFromLocalStorage = (key: string): string | null => {
 };
 
 export const LoginRedirect = () => {
-  const app = useStackApp();
+  const { data: session } = authClient.useSession();
 
   const queryParams = new URLSearchParams(window.location.search);
 
   // Identify user in analytics if logged in
-  const user = app.useUser();
+  const user = session?.user;
   if (user) {
     identify(user.id, {
-      email: user.primaryEmail || undefined,
-      name: user.displayName || undefined,
+      email: user.email || undefined,
+      name: user.name || undefined,
     });
   }
 

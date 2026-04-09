@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useUser } from "@stackframe/react";
+import { authClient } from "app/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,8 @@ type UserRole = "parent" | "child";
 
 export default function SetupProfile() {
   const navigate = useNavigate();
-  const user = useUser();
+  const { data: session } = authClient.useSession();
+  const user = session?.user ?? null;
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   
@@ -258,7 +259,7 @@ export default function SetupProfile() {
           
           {/* User Info */}
           <div className="mt-6 pt-4 border-t text-center text-sm text-muted-foreground">
-            Signed in as {user.displayName || user.primaryEmail}
+            Signed in as {user.name || user.email}
           </div>
         </CardContent>
       </Card>

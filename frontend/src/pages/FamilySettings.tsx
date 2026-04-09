@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
 import { User } from "lucide-react";
-import { useUser } from "@stackframe/react";
+import { useUserGuardContext } from "app/auth";
 import { apiClient } from "app";
 import FamilyManagement from "components/FamilyManagement";
 import type { ProfileResponse } from "types";
@@ -17,7 +17,7 @@ import { Switch } from "@/components/ui/switch";
 
 export default function FamilySettings() {
   const navigate = useNavigate();
-  const user = useUser();
+  const { user } = useUserGuardContext();
   const { t } = useTranslation();
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);

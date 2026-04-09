@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { useUser } from "@stackframe/react";
+import { useUserGuardContext } from "app/auth";
 import { CURRENCIES } from "utils/currencies";
 import type { ProfileResponse } from "types";
 import { useTranslation } from "react-i18next";
@@ -15,7 +15,7 @@ import { PageHeader } from "components/PageHeader";
 
 export default function ProfileSettings() {
   const navigate = useNavigate();
-  const user = useUser();
+  const { user } = useUserGuardContext();
   const { t } = useTranslation();
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [currency, setCurrency] = useState("NOK");
@@ -24,12 +24,7 @@ export default function ProfileSettings() {
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
 
-  // Redirect if not logged in
-  useEffect(() => {
-    if (!user) {
-      navigate("/auth/sign-in");
-    }
-  }, [user, navigate]);
+  // user is guaranteed by UserGuard
 
   // Load profile on mount
   useEffect(() => {
@@ -158,11 +153,11 @@ export default function ProfileSettings() {
             <CardContent className="space-y-4">
               <div>
                 <Label className="text-sm font-medium text-muted-foreground">{t("profile.email")}</Label>
-                <p className="text-base">{user.primaryEmail || t("common.notSet")}</p>
+                <p className="text-base">{user.email || t("common.notSet")}</p>
               </div>
               <div>
                 <Label className="text-sm font-medium text-muted-foreground">{t("profile.name")}</Label>
-                <p className="text-base">{user.displayName || t("common.notSet")}</p>
+                <p className="text-base">{user.name || t("common.notSet")}</p>
               </div>
               <div>
                 <Label className="text-sm font-medium text-muted-foreground">{t("profile.role")}</Label>

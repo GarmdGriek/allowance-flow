@@ -73,53 +73,19 @@ def import_api_routers() -> APIRouter:
     return routes
 
 
-def get_firebase_config() -> dict | None:
-    extensions = os.environ.get("DATABUTTON_EXTENSIONS", "[]")
-    extensions = json.loads(extensions)
-
-    for ext in extensions:
-        if ext["name"] == "firebase-auth":
-            return ext["config"]["firebaseConfig"]
-
-    return None
-
-
-def get_stack_auth_config() -> dict | None:
-    extensions = os.environ.get("DATABUTTON_EXTENSIONS", "[]")
-    extensions = json.loads(extensions)
-
-    for ext in extensions:
-        if ext["name"] == "stack-auth":
-            return ext["config"]
-
-    return None
-
-
 def parse_auth_configs() -> list[AuthConfig]:
-    """Parse auth configs from both firebase-auth and stack-auth extensions."""
+    """Parse auth configs from Neon Auth (Better Auth) env vars."""
     auth_configs: list[AuthConfig] = []
 
-    # Add stack-auth config if extension is enabled
-    stack_auth_cfg = get_stack_auth_config()
-    if stack_auth_cfg:
-        project_id = stack_auth_cfg["projectId"]
-        auth_configs.append(
-            AuthConfig(
-                issuer=f"https://api.stack-auth.com/api/v1/projects/{project_id}",
-                jwks_url=stack_auth_cfg["jwksUrl"],
-                audience=project_id,
-            )
-        )
+    jwks_url = os.environ.get("NEON_AUTH_JWKS_URL", "")
+    issuer = os.environ.get("NEON_AUTH_ISSUER", "")
 
-    # Add firebase auth config if extension is enabled
-    firebase_cfg = get_firebase_config()
-    if firebase_cfg:
-        project_id = firebase_cfg["projectId"]
+    if jwks_url and issuer:
         auth_configs.append(
             AuthConfig(
-                issuer=f"https://securetoken.google.com/{project_id}",
-                jwks_url="https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com",
-                audience=project_id,
+                issuer=issuer,
+                jwks_url=jwks_url,
+                audience=None,
             )
         )
 

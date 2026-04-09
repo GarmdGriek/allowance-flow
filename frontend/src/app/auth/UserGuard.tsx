@@ -1,16 +1,17 @@
-import { APP_BASE_PATH } from "@/constants";
-import {
-  type CurrentInternalServerUser,
-  type CurrentUser,
-  useStackApp,
-  useUser,
-} from "@stackframe/react";
 import type * as React from "react";
 import { createContext, useContext } from "react";
 import { Navigate, useLocation } from "react-router-dom";
+import { authClient } from "./neon-auth-client";
+
+type BetterAuthUser = {
+  id: string;
+  email: string | null;
+  name: string | null;
+  image?: string | null;
+};
 
 type UserGuardContextType = {
-  user: CurrentUser | CurrentInternalServerUser;
+  user: BetterAuthUser;
 };
 
 const UserGuardContext = createContext<UserGuardContextType | undefined>(
@@ -39,33 +40,23 @@ const writeToLocalStorage = (key: string, value: string) => {
 export const UserGuard = (props: {
   children: React.ReactNode;
 }) => {
-  const app = useStackApp();
-  const user = useUser();
-
+  const { data: session, isPending } = authClient.useSession();
   const { pathname } = useLocation();
 
-  if (!user) {
+  if (isPending) {
+    return null;
+  }
+
+  if (!session?.user) {
     const queryParams = new URLSearchParams(window.location.search);
-
-    // Don't set the next param if the user is logging out
-    // to avoid ending up in an infinite redirect loop
-    if (pathname !== app.urls.signOut) {
-      writeToLocalStorage("dtbn-login-next", pathname);
-      queryParams.set("next", pathname);
-    }
-
+    writeToLocalStorage("dtbn-login-next", pathname);
+    queryParams.set("next", pathname);
     const queryString = queryParams.toString();
-
-    return (
-      <Navigate
-        to={`${app.urls.signIn.replace(APP_BASE_PATH, "/").replace("//", "/")}?${queryString}`}
-        replace={true}
-      />
-    );
+    return <Navigate to={`/auth/sign-in?${queryString}`} replace={true} />;
   }
 
   return (
-    <UserGuardContext.Provider value={{ user }}>
+    <UserGuardContext.Provider value={{ user: session.user as BetterAuthUser }}>
       {props.children}
     </UserGuardContext.Provider>
   );

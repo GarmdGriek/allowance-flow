@@ -74,6 +74,10 @@ class Config(BaseModel):
 
     DISABLE_API_AS_INIT_PY: bool = False
 
+    # Neon Auth (Better Auth)
+    NEON_AUTH_JWKS_URL: str = ""
+    NEON_AUTH_ISSUER: str = ""
+
 
 @functools.cache
 def parse_extensions(databutton_extensions: str) -> list[Extension]:
@@ -122,52 +126,17 @@ def parse_auth_configs(cfg: Config) -> list[AuthConfig]:
     # matching the audience found in the token
     auth_configs: list[AuthConfig] = []
 
-    # Add stack auth config if extension is enabled
-    if stack_auth_cfg := get_stack_auth_extension_config(cfg):
-        auth_configs.append(get_stack_auth_auth_config(stack_auth_cfg))
+    # Add Neon Auth (Better Auth) config if env vars are set
+    if cfg.NEON_AUTH_JWKS_URL and cfg.NEON_AUTH_ISSUER:
+        auth_configs.append(AuthConfig(
+            issuer=cfg.NEON_AUTH_ISSUER,
+            jwks_url=cfg.NEON_AUTH_JWKS_URL,
+            audience=None,
+        ))
 
     # Add firebase auth config if extension is enabled
     if firebase_auth_cfg := get_firebase_extension_config(cfg):
         auth_configs.append(get_firebase_auth_config(firebase_auth_cfg))
-
-    # TODO: Add other JWKS compatible auth integrations like supabase here
-
-    # The rest of the auth configs will be added only if the above configs are present
-    if len(auth_configs) == 0:
-        return auth_configs
-
-    # Add google OIDC issuer config for scheduler
-    auth_configs.append(
-        get_google_scheduler_auth_config(
-            project_id=cfg.DATABUTTON_PROJECT_ID,
-            service_type=cfg.DATABUTTON_SERVICE_TYPE,
-            host=cfg.DEVX_HOST,
-        )
-    )
-
-    # Add internal devx audience and jwks url to get signing key from for test tokens
-    if cfg.DATABUTTON_SERVICE_TYPE == "devx" and cfg.DEVX_URL_INTERNAL:
-        auth_configs.append(
-            get_internal_auth_config(
-                internal_devx_url=cfg.DEVX_URL_INTERNAL,
-                project_id=cfg.DATABUTTON_PROJECT_ID,
-                service_type=cfg.DATABUTTON_SERVICE_TYPE,
-            )
-        )
-
-    # TODO: This is only used in the mcp server for now, want to add api tokens for endpoints later
-    # Config for databutton signed api tokens with the app as audience
-    # auth_configs.append(
-    #     AuthConfig(
-    #         issuer="https://securetoken.google.com/databutton",
-    #         jwks_url="https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com",
-    #         audience="databutton",
-    #         require_dbtn_claims={
-    #             "appId": cfg.DATABUTTON_PROJECT_ID,
-    #             "env": cfg.DATABUTTON_SERVICE_TYPE,
-    #         },
-    #     )
-    # )
 
     return auth_configs
 
