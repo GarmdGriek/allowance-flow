@@ -1,5 +1,5 @@
 import type * as React from "react";
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { authClient } from "./neon-auth-client";
 
@@ -40,22 +40,30 @@ const writeToLocalStorage = (key: string, value: string) => {
 export const UserGuard = (props: {
   children: React.ReactNode;
 }) => {
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session, isPending, refetch } = authClient.useSession();
   const { pathname } = useLocation();
 
   const hasVerifier = new URLSearchParams(window.location.search).has("neon_auth_session_verifier");
 
-  if (isPending) return null;
+  // When Neon Auth redirects back with a verifier, trigger a session re-fetch
+  // so the verifier gets included in the get-session request (via neon-auth-client.ts)
+  useEffect(() => {
+    if (hasVerifier) {
+      refetch?.();
+    }
+  }, [hasVerifier]);
 
-  // Verifier exchange complete — clean it from the URL and render
-  if (hasVerifier && session?.user) {
-    const url = new URL(window.location.href);
-    url.searchParams.delete("neon_auth_session_verifier");
-    window.history.replaceState({}, "", url.toString());
-  }
+  // Once session is established, clean the verifier from the URL
+  useEffect(() => {
+    if (hasVerifier && session?.user) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("neon_auth_session_verifier");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [hasVerifier, session?.user]);
 
-  // Verifier still being exchanged — wait
-  if (hasVerifier && !session?.user) {
+  // Wait while loading, or while verifier is still being exchanged
+  if (isPending || (hasVerifier && !session?.user)) {
     return null;
   }
 
