@@ -337,7 +337,13 @@ export const StackHandlerRoutes = () => {
           variant="outline"
           className="w-full flex items-center gap-2"
           onClick={async () => {
-            await authClient.signIn.social({ provider: "google", callbackURL: next });
+            const result = await authClient.signIn.social({
+              provider: "google",
+              callbackURL: window.location.origin + next,
+            });
+            if (result?.error) {
+              setError(result.error.message || JSON.stringify(result.error));
+            }
           }}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="h-4 w-4">
