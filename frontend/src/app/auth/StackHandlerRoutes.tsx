@@ -35,7 +35,7 @@ const ForgotPasswordScreen = () => {
         redirectTo: `${window.location.origin}/auth/reset-password`,
       });
       if (result.error) {
-        setError(result.error.message || "Failed to send reset email.");
+        setError(result.error.message || JSON.stringify(result.error) || "Failed to send reset email.");
       } else {
         setSuccess(true);
       }
