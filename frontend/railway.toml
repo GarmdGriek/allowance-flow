@@ -4,4 +4,4 @@ buildCommand = "yarn install && yarn build"
 
 [deploy]
 startCommand = "npx serve -s dist -l $PORT"
-restartPolicyType = "on-failure"
+restartPolicyType = "ON_FAILURE"
