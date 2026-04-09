@@ -45,7 +45,17 @@ export const UserGuard = (props: {
 
   const hasVerifier = new URLSearchParams(window.location.search).has("neon_auth_session_verifier");
 
-  if (isPending || hasVerifier) {
+  if (isPending) return null;
+
+  // Verifier exchange complete — clean it from the URL and render
+  if (hasVerifier && session?.user) {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("neon_auth_session_verifier");
+    window.history.replaceState({}, "", url.toString());
+  }
+
+  // Verifier still being exchanged — wait
+  if (hasVerifier && !session?.user) {
     return null;
   }
 
