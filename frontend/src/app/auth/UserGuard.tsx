@@ -43,7 +43,9 @@ export const UserGuard = (props: {
   const { data: session, isPending } = authClient.useSession();
   const { pathname } = useLocation();
 
-  if (isPending) {
+  const hasVerifier = new URLSearchParams(window.location.search).has("neon_auth_session_verifier");
+
+  if (isPending || hasVerifier) {
     return null;
   }
 
