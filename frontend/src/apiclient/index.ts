@@ -1,14 +1,14 @@
 import { auth } from "app/auth";
-import { API_HOST, API_PATH } from "../constants";
+import { API_URL } from "../constants";
 import { Apiclient } from "./Apiclient";
 import type { RequestParams } from "./http-client";
 
 const constructBaseUrl = (): string => {
-  // If running locally, use the origin instead of the API_HOST
-  if (window.location.origin.includes("localhost")) {
-    return `${window.location.origin}${API_PATH}`;
+  // If running locally, fall back to localhost
+  if (!API_URL || API_URL === "undefined") {
+    return window.location.origin;
   }
-  return `${API_HOST}${API_PATH}`;
+  return API_URL;
 };
 
 type BaseApiParams = Omit<RequestParams, "signal" | "baseUrl" | "cancelToken">;
@@ -30,9 +30,7 @@ const constructClient = () => {
     baseUrl,
     baseApiParams,
     customFetch: (url, options) => {
-      // Remove /routes/ segment from path
-      const normalizedUrl = url.replace(API_PATH + "/routes", API_PATH);
-      return fetch(normalizedUrl, options);
+      return fetch(url, options);
     },
     securityWorker: async () => {
       return {
