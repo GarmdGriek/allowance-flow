@@ -3,6 +3,7 @@ import pathlib
 import json
 import dotenv
 from fastapi import FastAPI, APIRouter, Depends
+from fastapi.middleware.cors import CORSMiddleware
 
 # Load environment files
 # First load shared .env file
@@ -95,6 +96,21 @@ def parse_auth_configs() -> list[AuthConfig]:
 def create_app() -> FastAPI:
     """Create the app. This is called by uvicorn with the factory option to construct the app object."""
     app = FastAPI()
+
+    # CORS — allow frontend origin(s)
+    allowed_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+    if not allowed_origins:
+        # Default: allow all (safe fallback for dev; set ALLOWED_ORIGINS in prod)
+        allowed_origins = ["*"]
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     app.include_router(import_api_routers())
 
     for route in app.routes:
