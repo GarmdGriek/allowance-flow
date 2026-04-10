@@ -11,10 +11,15 @@ export const auth = {
 };
 
 async function getAccessToken(): Promise<string | null> {
-  const session = await authClient.getSession();
-  console.debug("[auth] full session response:", JSON.stringify(session));
-  // Better Auth/Neon Auth stores the JWT token on session.data.session.token
-  const token = (session?.data as any)?.session?.token ?? null;
-  console.debug("[auth] extracted token:", token ? token.substring(0, 20) + "..." : null);
-  return token;
+  try {
+    // Neon Auth (Better Auth) issues JWTs via the /token endpoint.
+    // The session cookie is sent automatically; the response contains a signed JWT
+    // that the backend validates against the JWKS URL.
+    const response = await authClient.$fetch<{ token: string }>("/token");
+    const token = (response as any)?.token ?? null;
+    return token;
+  } catch (err) {
+    console.warn("[auth] failed to fetch JWT token:", err);
+    return null;
+  }
 }
