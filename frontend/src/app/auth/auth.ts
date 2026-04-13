@@ -1,4 +1,4 @@
-import { getNeonJwt } from "./neon-auth-client";
+import { authClient } from "./neon-auth-client";
 
 export const auth = {
   getAuthHeaderValue: async (): Promise<string> => {
@@ -11,5 +11,7 @@ export const auth = {
 };
 
 async function getAccessToken(): Promise<string | null> {
-  return getNeonJwt();
+  const session = await authClient.getSession();
+  // Send the opaque session token — the backend validates it via Neon Auth's session endpoint
+  return (session?.data as any)?.session?.token ?? null;
 }

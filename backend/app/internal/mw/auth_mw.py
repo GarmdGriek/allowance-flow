@@ -4,6 +4,7 @@ import os
 from http import HTTPStatus
 from typing import Annotated, Any, Callable
 
+import httpx
 import jwt
 from fastapi import Depends, HTTPException, WebSocket, WebSocketException, status
 from fastapi.datastructures import URL
@@ -47,7 +48,7 @@ def get_audit_log(request: HTTPConnection) -> Callable[[str], None] | None:
 AuditLogDep = Annotated[Callable[[str], None] | None, Depends(get_audit_log)]
 
 
-def get_authorized_user(
+async def get_authorized_user(
     request: HTTPConnection,
     auth_configs: AuthConfigsDep,
     audit_log: AuditLogDep,
@@ -56,7 +57,7 @@ def get_authorized_user(
         if isinstance(request, WebSocket):
             user = authorize_websocket(request, auth_configs, audit_log)
         elif isinstance(request, Request):
-            user = authorize_request(request, auth_configs, audit_log)
+            user = await authorize_request(request, auth_configs, audit_log)
         else:
             raise ValueError("Unexpected request type")
 
@@ -309,7 +310,31 @@ def authorize_websocket(
     return authorize_token(token, url, auth_configs, audit_log, options)
 
 
-def authorize_request(
+async def validate_neon_session(token: str, neon_auth_url: str) -> User | None:
+    """Validate a Neon Auth opaque session token by calling the session endpoint."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(
+                f"{neon_auth_url}/get-session",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            if response.status_code == 200:
+                data = response.json()
+                user_data = data.get("user", {})
+                user_id = user_data.get("id")
+                if user_id:
+                    return User(
+                        sub=user_id,
+                        user_id=user_id,
+                        name=user_data.get("name"),
+                        email=user_data.get("email"),
+                    )
+    except Exception as e:
+        print(f"Neon Auth session validation error: {e}")
+    return None
+
+
+async def authorize_request(
     request: Request,
     auth_configs: list[AuthConfig],
     audit_log: Callable[[str], None] | None,
@@ -347,4 +372,18 @@ def authorize_request(
 
     url = request.url
 
-    return authorize_token(token, url, auth_configs, audit_log, options)
+    # Try JWT validation first
+    user = authorize_token(token, url, auth_configs, audit_log, options)
+    if user is not None:
+        return user
+
+    # Fallback: validate opaque session token via Neon Auth session endpoint
+    neon_auth_url = os.environ.get("NEON_AUTH_ISSUER", "")
+    if neon_auth_url:
+        user = await validate_neon_session(token, neon_auth_url)
+        if user is not None:
+            if audit_log:
+                audit_log(f"User {user.sub} authenticated via Neon Auth session")
+            return user
+
+    return None
