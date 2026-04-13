@@ -31,13 +31,9 @@ class User(BaseModel):
 
 
 def get_auth_configs(request: HTTPConnection) -> list[AuthConfig]:
+    """Return auth configs — empty list is allowed (Neon session auth doesn't need JWKS)."""
     auth_configs: list[AuthConfig] | None = request.app.state.auth_configs
-
-    if auth_configs is None or len(auth_configs) == 0:
-        raise HTTPException(
-            status_code=HTTPStatus.UNAUTHORIZED, detail="No auth config"
-        )
-    return auth_configs
+    return auth_configs or []
 
 
 AuthConfigsDep = Annotated[list[AuthConfig], Depends(get_auth_configs)]
@@ -57,11 +53,11 @@ async def get_authorized_user(
 
         if user is not None:
             return user
-        print("Request authentication returned no user")
+        print("[auth] Request authentication returned no user")
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Request authentication failed: {e}")
+        print(f"[auth] Request authentication failed: {e}")
 
     if isinstance(request, WebSocket):
         raise WebSocketException(
@@ -112,7 +108,7 @@ def authorize_websocket(
             break
 
     if not token:
-        print(f"Missing bearer {prefix}.<token> in protocols")
+        print(f"[auth] Missing bearer {prefix}.<token> in protocols")
         return None
 
     return authorize_token_jwt(token, auth_configs)
@@ -124,21 +120,22 @@ async def authorize_request(
 ) -> User | None:
     auth_header = request.headers.get("authorization")
     if not auth_header:
-        print("Missing header 'authorization'")
+        print("[auth] Missing header 'authorization'")
         return None
 
     token = auth_header.startswith("Bearer ") and auth_header.removeprefix("Bearer ")
     if not token:
-        print("Missing bearer token in 'authorization'")
+        print("[auth] Missing bearer token in 'authorization'")
         return None
 
-    # Try JWT validation first (fails fast for opaque tokens)
-    try:
-        user = authorize_token_jwt(token, auth_configs)
-        if user is not None:
-            return user
-    except Exception as e:
-        print(f"[auth] JWT validation error (expected for opaque tokens): {e}")
+    # Try JWT validation first (only if we have JWKS-based auth configs)
+    if auth_configs:
+        try:
+            user = authorize_token_jwt(token, auth_configs)
+            if user is not None:
+                return user
+        except Exception as e:
+            print(f"[auth] JWT validation skipped (opaque token?): {e}")
 
     # Fallback: validate opaque session token via Neon Auth session endpoint
     neon_auth_url = os.environ.get("NEON_AUTH_ISSUER", "").rstrip("/")
@@ -192,8 +189,7 @@ def authorize_token_jwt(
     token: str,
     auth_configs: list[AuthConfig],
 ) -> User | None:
-    # Partially parse token without verification to get issuer and audience
-    # This will raise DecodeError for opaque (non-JWT) tokens
+    # Partially parse token without verification — raises DecodeError for opaque tokens
     unverified_payload = jwt.decode(
         token,
         options={
@@ -205,26 +201,22 @@ def authorize_token_jwt(
     token_iss: str | None = unverified_payload.get("iss")
     token_aud: str | None = unverified_payload.get("aud")
 
-    # Try to validate with each auth config
     for auth_config in auth_configs:
-        # Check if issuer matches
         if token_iss != auth_config.issuer:
             continue
 
-        # Determine expected audience
         audiences: tuple[str, ...] = (
             (auth_config.audience,) if auth_config.audience is not None else auth_config.audiences
         )
 
         if audiences and token_aud not in audiences:
-            print(f"Audience mismatch: {token_aud} not in {audiences}")
+            print(f"[auth] Audience mismatch: {token_aud} not in {audiences}")
             continue
 
-        # Validate token with full verification
         try:
             key, alg = get_signing_key(auth_config.jwks_url, token)
         except Exception as e:
-            print(f"Failed to get signing key: {e}")
+            print(f"[auth] Failed to get signing key: {e}")
             continue
 
         try:
@@ -235,17 +227,16 @@ def authorize_token_jwt(
                 audience=token_aud,
             )
         except jwt.PyJWTError as e:
-            print(f"Failed to decode and validate token: {e}")
+            print(f"[auth] Failed to decode and validate token: {e}")
             continue
 
-        # Parse user from payload
         try:
             user = User.model_validate(payload)
-            print(f"User {user.sub} authenticated via JWT")
+            print(f"[auth] User {user.sub} authenticated via JWT")
             return user
         except Exception as e:
-            print(f"Failed to parse token payload: {e}")
+            print(f"[auth] Failed to parse token payload: {e}")
             continue
 
-    print("Failed to validate authorization token with any auth config")
+    print("[auth] Failed to validate authorization token with any auth config")
     return None
