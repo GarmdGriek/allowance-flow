@@ -156,39 +156,36 @@ async def authorize_request(
 
 
 async def validate_neon_session(token: str, neon_auth_url: str) -> User | None:
-    """Validate a Neon Auth opaque session token by calling the session endpoint.
-    Better Auth expects the session token as a cookie, not an Authorization header.
-    """
-    try:
-        url = f"{neon_auth_url}/get-session"
-        print(f"[auth] calling {url}")
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(
-                url,
-                headers={"Cookie": f"better-auth.session_token={token}"},
-            )
-            print(f"[auth] get-session status={response.status_code} body={response.text[:200]}")
-            if response.status_code == 200:
-                data = response.json()
-                if data is None:
-                    print("[auth] get-session returned null (session expired or token invalid)")
-                    return None
-                print(f"[auth] get-session data keys: {list(data.keys())}")
-                user_data = data.get("user") or {}
-                user_id = user_data.get("id")
-                if user_id:
-                    return User(
-                        sub=user_id,
-                        user_id=user_id,
-                        name=user_data.get("name"),
-                        email=user_data.get("email"),
-                    )
-                else:
-                    print(f"[auth] no user id in response: {data}")
-            else:
-                print(f"[auth] get-session error body: {response.text[:200]}")
-    except Exception as e:
-        print(f"[auth] Neon Auth session validation error: {e}")
+    """Try all known ways Better Auth accepts a session token for server-side validation."""
+    url = f"{neon_auth_url}/get-session"
+    attempts = [
+        ("x-session-token", {"x-session-token": token, "Accept": "application/json"}),
+        ("cookie",          {"Cookie": f"better-auth.session_token={token}", "Accept": "application/json"}),
+        ("bearer",          {"Authorization": f"Bearer {token}", "Accept": "application/json"}),
+    ]
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        for method_name, headers in attempts:
+            try:
+                response = await client.get(url, headers=headers)
+                print(f"[auth] {method_name}: status={response.status_code} body={response.text[:300]!r}")
+                if response.status_code == 200 and response.text not in ("null", "", "null\n"):
+                    data = response.json()
+                    if data and isinstance(data, dict):
+                        user_data = data.get("user") or {}
+                        user_id = user_data.get("id")
+                        if user_id:
+                            print(f"[auth] {method_name} succeeded! user_id={user_id}")
+                            return User(
+                                sub=user_id,
+                                user_id=user_id,
+                                name=user_data.get("name"),
+                                email=user_data.get("email"),
+                            )
+                        else:
+                            print(f"[auth] {method_name} data={data}")
+            except Exception as e:
+                print(f"[auth] {method_name} error: {e}")
+    print(f"[auth] all methods failed for token {token[:8]}...")
     return None
 
 
