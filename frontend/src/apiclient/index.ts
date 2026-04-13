@@ -46,10 +46,25 @@ const fetchWithAuthRetry = async (url: RequestInfo | URL, options?: RequestInit)
 
   // Only one refresh attempt at a time; reset after 10 s to allow future retries
   if (!tokenRefreshPromise) {
-    tokenRefreshPromise = (authClient.getSession({ fetchOptions: { cache: "no-store" } } as any) as Promise<any>)
-      .then((s: any) => (s?.data as any)?.session?.token ?? null)
-      .catch(() => null)
-      .finally(() => { setTimeout(() => { tokenRefreshPromise = null; }, 10_000); });
+    tokenRefreshPromise = (async () => {
+      // Prefer a fresh JWT (validated by JWKS on backend) over opaque session token
+      try {
+        const res = await fetch(`${(window as any).__NEON_AUTH_URL__ ?? ""}${"/token"}`, {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (res.ok) {
+          const data = await res.json().catch(() => null);
+          const jwt: string | undefined = data?.token ?? data?.accessToken ?? data?.idToken;
+          if (jwt && jwt.split(".").length === 3) return jwt;
+        }
+      } catch { /* fall through */ }
+      // Fallback: opaque session token
+      return (authClient.getSession({ fetchOptions: { cache: "no-store" } } as any) as Promise<any>)
+        .then((s: any) => (s?.data as any)?.session?.token ?? null)
+        .catch(() => null);
+    })().finally(() => { setTimeout(() => { tokenRefreshPromise = null; }, 10_000); });
   }
 
   const freshToken = await tokenRefreshPromise;
