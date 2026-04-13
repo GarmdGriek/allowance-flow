@@ -83,7 +83,7 @@ def get_signing_key(url: str, token: str) -> tuple[str, str]:
     signing_key = client.get_signing_key_from_jwt(token)
     key = signing_key.key
     alg = signing_key.algorithm_name
-    if alg not in ("RS256", "ES256"):
+    if alg not in ("RS256", "ES256", "EdDSA"):
         raise ValueError(f"Unsupported signing algorithm: {alg}")
     return (key, alg)
 
@@ -206,15 +206,8 @@ def authorize_token_jwt(
     token_aud: str | None = unverified_payload.get("aud")
 
     for auth_config in auth_configs:
-        if token_iss != auth_config.issuer:
-            continue
-
-        audiences: tuple[str, ...] = (
-            (auth_config.audience,) if auth_config.audience is not None else auth_config.audiences
-        )
-
-        if audiences and token_aud not in audiences:
-            print(f"[auth] Audience mismatch: {token_aud} not in {audiences}")
+        # Skip if issuer is present and doesn't match (allow missing iss — Neon Auth omits it)
+        if token_iss is not None and token_iss != auth_config.issuer:
             continue
 
         try:
@@ -228,19 +221,26 @@ def authorize_token_jwt(
                 token,
                 key=key,
                 algorithms=[alg],
-                audience=token_aud,
+                options={"verify_aud": False},  # Neon Auth JWTs may omit aud
             )
         except jwt.PyJWTError as e:
             print(f"[auth] Failed to decode and validate token: {e}")
             continue
 
-        try:
-            user = User.model_validate(payload)
-            print(f"[auth] User {user.sub} authenticated via JWT")
-            return user
-        except Exception as e:
-            print(f"[auth] Failed to parse token payload: {e}")
+        # Extract user ID — Better Auth uses 'sub'; fall back to 'id' or 'userId'
+        user_id = payload.get("sub") or payload.get("id") or payload.get("userId")
+        if not user_id:
+            print(f"[auth] JWT payload has no sub/id/userId: {list(payload.keys())}")
             continue
+
+        user = User(
+            sub=user_id,
+            user_id=user_id,
+            name=payload.get("name"),
+            email=payload.get("email"),
+        )
+        print(f"[auth] User {user.sub} authenticated via JWT (alg={alg})")
+        return user
 
     print("[auth] Failed to validate authorization token with any auth config")
     return None
