@@ -78,17 +78,48 @@ def parse_auth_configs() -> list[AuthConfig]:
     """Parse auth configs from Neon Auth (Better Auth) env vars."""
     auth_configs: list[AuthConfig] = []
 
-    jwks_url = os.environ.get("NEON_AUTH_JWKS_URL", "")
-    issuer = os.environ.get("NEON_AUTH_ISSUER", "")
+    # Strip whitespace/leading = that Railway may inject
+    raw_jwks = os.environ.get("NEON_AUTH_JWKS_URL", "")
+    raw_issuer = os.environ.get("NEON_AUTH_ISSUER", "")
+    jwks_url = raw_jwks.strip().lstrip("=").strip().rstrip("/")
+    issuer = raw_issuer.strip().lstrip("=").strip().rstrip("/")
 
-    if jwks_url and issuer:
+    print(f"[auth-config] NEON_AUTH_ISSUER={issuer!r}")
+    print(f"[auth-config] NEON_AUTH_JWKS_URL={jwks_url!r}")
+
+    # Auto-derive JWKS URL from issuer when not explicitly set
+    # Better Auth exposes JWKS at <issuer>/jwks (no .json suffix)
+    if issuer and not jwks_url:
+        jwks_url = f"{issuer}/jwks"
+        print(f"[auth-config] Auto-derived JWKS URL: {jwks_url!r}")
+
+    if issuer:
+        # Try both the configured/derived URL and the well-known fallback
+        candidates: list[str] = []
+        if jwks_url:
+            candidates.append(jwks_url)
+        # Also try common Better Auth JWKS paths as fallbacks
+        for suffix in ("/jwks", "/.well-known/jwks.json", "/api/auth/jwks"):
+            candidate = f"{issuer}{suffix}"
+            if candidate not in candidates:
+                candidates.append(candidate)
+
+        # Use primary URL for config; extras passed as fallbacks
+        primary = candidates[0]
+        fallbacks = candidates[1:]
+        print(f"[auth-config] Using JWKS URL: {primary!r}")
+        print(f"[auth-config] Fallback JWKS URLs: {fallbacks!r}")
+
         auth_configs.append(
             AuthConfig(
                 issuer=issuer,
-                jwks_url=jwks_url,
+                jwks_url=primary,
+                jwks_url_fallbacks=fallbacks,
                 audience=None,
             )
         )
+    else:
+        print("[auth-config] NEON_AUTH_ISSUER not set — JWT validation disabled")
 
     return auth_configs
 

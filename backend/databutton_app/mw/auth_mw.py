@@ -15,6 +15,8 @@ from starlette.requests import Request
 class AuthConfig(BaseModel):
     issuer: str
     jwks_url: str
+    # Additional JWKS URLs to try if the primary fails (auto-derived fallbacks)
+    jwks_url_fallbacks: list[str] = []
     audience: str | None = None
     audiences: tuple[str, ...] = ()
 
@@ -194,26 +196,44 @@ def authorize_token_jwt(
     auth_configs: list[AuthConfig],
 ) -> User | None:
     # Partially parse token without verification — raises DecodeError for opaque tokens
-    unverified_payload = jwt.decode(
-        token,
-        options={
-            "verify_signature": False,
-            "verify_aud": False,
-            "verify_iss": False,
-        },
-    )
+    try:
+        unverified_header = jwt.get_unverified_header(token)
+        unverified_payload = jwt.decode(
+            token,
+            options={
+                "verify_signature": False,
+                "verify_aud": False,
+                "verify_iss": False,
+            },
+        )
+    except Exception as e:
+        print(f"[auth] Failed to decode token header/payload (not a JWT?): {e}")
+        return None
+
     token_iss: str | None = unverified_payload.get("iss")
-    token_aud: str | None = unverified_payload.get("aud")
+    token_kid: str | None = unverified_header.get("kid")
+    token_alg: str | None = unverified_header.get("alg")
+    print(f"[auth] JWT header: alg={token_alg!r} kid={token_kid!r} iss={token_iss!r}")
 
     for auth_config in auth_configs:
         # Skip if issuer is present and doesn't match (allow missing iss — Neon Auth omits it)
         if token_iss is not None and token_iss != auth_config.issuer:
+            print(f"[auth] Issuer mismatch: token has {token_iss!r}, config has {auth_config.issuer!r}")
             continue
 
-        try:
-            key, alg = get_signing_key(auth_config.jwks_url, token)
-        except Exception as e:
-            print(f"[auth] Failed to get signing key: {e}")
+        # Try primary JWKS URL, then fallbacks
+        all_jwks_urls = [auth_config.jwks_url] + auth_config.jwks_url_fallbacks
+        key, alg = None, None
+        for jwks_url in all_jwks_urls:
+            try:
+                key, alg = get_signing_key(jwks_url, token)
+                print(f"[auth] Got signing key from {jwks_url!r} alg={alg!r}")
+                break
+            except Exception as e:
+                print(f"[auth] Failed to get signing key from {jwks_url!r}: {e}")
+
+        if key is None:
+            print(f"[auth] Could not find signing key in any JWKS URL for kid={token_kid!r}")
             continue
 
         try:
