@@ -1,6 +1,9 @@
 import functools
+import os
 from http import HTTPStatus
 from typing import Annotated, Callable
+
+import httpx
 import jwt
 from fastapi import Depends, HTTPException, WebSocket, WebSocketException, status
 from fastapi.requests import HTTPConnection
@@ -40,14 +43,7 @@ def get_auth_configs(request: HTTPConnection) -> list[AuthConfig]:
 AuthConfigsDep = Annotated[list[AuthConfig], Depends(get_auth_configs)]
 
 
-def get_audit_log(request: HTTPConnection) -> Callable[[str], None] | None:
-    return getattr(request.app.state.databutton_app_state, "audit_log", None)
-
-
-AuditLogDep = Annotated[Callable[[str], None] | None, Depends(get_audit_log)]
-
-
-def get_authorized_user(
+async def get_authorized_user(
     request: HTTPConnection,
     auth_configs: AuthConfigsDep,
 ) -> User:
@@ -55,13 +51,15 @@ def get_authorized_user(
         if isinstance(request, WebSocket):
             user = authorize_websocket(request, auth_configs)
         elif isinstance(request, Request):
-            user = authorize_request(request, auth_configs)
+            user = await authorize_request(request, auth_configs)
         else:
             raise ValueError("Unexpected request type")
 
         if user is not None:
             return user
         print("Request authentication returned no user")
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Request authentication failed: {e}")
 
@@ -117,10 +115,10 @@ def authorize_websocket(
         print(f"Missing bearer {prefix}.<token> in protocols")
         return None
 
-    return authorize_token(token, auth_configs)
+    return authorize_token_jwt(token, auth_configs)
 
 
-def authorize_request(
+async def authorize_request(
     request: Request,
     auth_configs: list[AuthConfig],
 ) -> User | None:
@@ -134,28 +132,78 @@ def authorize_request(
         print("Missing bearer token in 'authorization'")
         return None
 
-    return authorize_token(token, auth_configs)
+    # Try JWT validation first (fails fast for opaque tokens)
+    try:
+        user = authorize_token_jwt(token, auth_configs)
+        if user is not None:
+            return user
+    except Exception as e:
+        print(f"[auth] JWT validation error (expected for opaque tokens): {e}")
+
+    # Fallback: validate opaque session token via Neon Auth session endpoint
+    neon_auth_url = os.environ.get("NEON_AUTH_ISSUER", "").rstrip("/")
+    print(f"[auth] neon_auth_url={neon_auth_url!r} token_prefix={token[:8]!r}")
+    if neon_auth_url:
+        user = await validate_neon_session(token, neon_auth_url)
+        if user is not None:
+            print(f"[auth] User {user.sub} authenticated via Neon Auth session")
+            return user
+        else:
+            print("[auth] Neon Auth session validation returned no user")
+    else:
+        print("[auth] NEON_AUTH_ISSUER not set, skipping session validation")
+
+    return None
 
 
-def authorize_token(
+async def validate_neon_session(token: str, neon_auth_url: str) -> User | None:
+    """Validate a Neon Auth opaque session token by calling the session endpoint."""
+    try:
+        url = f"{neon_auth_url}/get-session"
+        print(f"[auth] calling {url}")
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(
+                url,
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            print(f"[auth] get-session status={response.status_code}")
+            if response.status_code == 200:
+                data = response.json()
+                print(f"[auth] get-session data keys: {list(data.keys())}")
+                user_data = data.get("user", {})
+                user_id = user_data.get("id")
+                if user_id:
+                    return User(
+                        sub=user_id,
+                        user_id=user_id,
+                        name=user_data.get("name"),
+                        email=user_data.get("email"),
+                    )
+                else:
+                    print(f"[auth] no user id in response: {data}")
+            else:
+                print(f"[auth] get-session error body: {response.text[:200]}")
+    except Exception as e:
+        print(f"[auth] Neon Auth session validation error: {e}")
+    return None
+
+
+def authorize_token_jwt(
     token: str,
     auth_configs: list[AuthConfig],
 ) -> User | None:
     # Partially parse token without verification to get issuer and audience
-    try:
-        unverified_payload = jwt.decode(
-            token,
-            options={
-                "verify_signature": False,
-                "verify_aud": False,
-                "verify_iss": False,
-            },
-        )
-        token_iss: str | None = unverified_payload.get("iss")
-        token_aud: str | None = unverified_payload.get("aud")
-    except Exception as e:
-        print(f"Failed to decode token: {e}")
-        return None
+    # This will raise DecodeError for opaque (non-JWT) tokens
+    unverified_payload = jwt.decode(
+        token,
+        options={
+            "verify_signature": False,
+            "verify_aud": False,
+            "verify_iss": False,
+        },
+    )
+    token_iss: str | None = unverified_payload.get("iss")
+    token_aud: str | None = unverified_payload.get("aud")
 
     # Try to validate with each auth config
     for auth_config in auth_configs:
@@ -167,8 +215,8 @@ def authorize_token(
         audiences: tuple[str, ...] = (
             (auth_config.audience,) if auth_config.audience is not None else auth_config.audiences
         )
-        
-        if token_aud not in audiences:
+
+        if audiences and token_aud not in audiences:
             print(f"Audience mismatch: {token_aud} not in {audiences}")
             continue
 
@@ -193,7 +241,7 @@ def authorize_token(
         # Parse user from payload
         try:
             user = User.model_validate(payload)
-            print(f"User {user.sub} authenticated")
+            print(f"User {user.sub} authenticated via JWT")
             return user
         except Exception as e:
             print(f"Failed to parse token payload: {e}")
