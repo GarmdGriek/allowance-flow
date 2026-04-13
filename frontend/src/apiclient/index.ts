@@ -21,40 +21,45 @@ const constructBaseApiParams = (): BaseApiParams => {
   };
 };
 
+// Singleton refresh: all concurrent 401s share one getSession call (prevents 429 spam)
+let tokenRefreshPromise: Promise<string | null> | null = null;
+
 /**
  * Fetch wrapper that handles 401 responses by forcing a fresh session check.
- * If the session is genuinely expired, signs the user out and redirects to login.
+ * - Uses a singleton refresh promise so parallel 401s don't hammer Neon Auth.
+ * - Guards against redirect loops by doing nothing when already on /auth pages.
+ * - If the session is genuinely expired, signs the user out and redirects to login.
  */
 const fetchWithAuthRetry = async (url: RequestInfo | URL, options?: RequestInit): Promise<Response> => {
   const response = await fetch(url, options);
 
-  if (response.status === 401) {
-    // Force a fresh session fetch (bypasses in-memory cache)
-    const freshSession = await authClient.getSession({ fetchOptions: { cache: "no-store" } } as any);
+  if (response.status !== 401) return response;
 
-    if (!freshSession?.data) {
-      // Session is genuinely gone — sign out and redirect to login
-      console.warn("[auth] Session expired, signing out");
-      await authClient.signOut();
-      window.location.href = "/auth/sign-in";
-      return response;
-    }
+  // Don't trigger sign-out while already on an auth page — avoids redirect loops
+  if (window.location.pathname.startsWith("/auth")) return response;
 
-    const freshToken = (freshSession.data as any)?.session?.token;
-    if (freshToken) {
-      // Retry the original request once with the fresh token
-      const retryOptions: RequestInit = {
-        ...options,
-        headers: {
-          ...(options?.headers ?? {}),
-          Authorization: `Bearer ${freshToken}`,
-        },
-      };
-      return fetch(url, retryOptions);
-    }
+  // Only one refresh attempt at a time; reset after 10 s to allow future retries
+  if (!tokenRefreshPromise) {
+    tokenRefreshPromise = (authClient.getSession({ fetchOptions: { cache: "no-store" } } as any) as Promise<any>)
+      .then((s: any) => (s?.data as any)?.session?.token ?? null)
+      .catch(() => null)
+      .finally(() => { setTimeout(() => { tokenRefreshPromise = null; }, 10_000); });
   }
 
-  return response;
+  const freshToken = await tokenRefreshPromise;
+
+  if (!freshToken) {
+    console.warn("[auth] Session expired, signing out");
+    await authClient.signOut().catch(() => {});
+    window.location.href = "/auth/sign-in";
+    return response;
+  }
+
+  // Retry the original request once with the fresh token
+  return fetch(url, {
+    ...options,
+    headers: { ...(options?.headers ?? {}), Authorization: `Bearer ${freshToken}` },
+  });
 };
 
 const constructClient = () => {
