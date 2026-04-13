@@ -138,7 +138,9 @@ async def authorize_request(
             print(f"[auth] JWT validation skipped (opaque token?): {e}")
 
     # Fallback: validate opaque session token via Neon Auth session endpoint
-    neon_auth_url = os.environ.get("NEON_AUTH_ISSUER", "").rstrip("/")
+    # Strip whitespace, tabs, and any leading = that Railway might inject
+    raw = os.environ.get("NEON_AUTH_ISSUER", "")
+    neon_auth_url = raw.strip().lstrip("=").strip().rstrip("/")
     print(f"[auth] neon_auth_url={neon_auth_url!r} token_prefix={token[:8]!r}")
     if neon_auth_url:
         user = await validate_neon_session(token, neon_auth_url)
