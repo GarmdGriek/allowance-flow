@@ -45,6 +45,7 @@ export async function getNeonJwt(): Promise<string | null> {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${sessionToken}`,
       },
+      body: JSON.stringify({}),
     });
     console.debug("[auth] /token status:", res.status);
     if (!res.ok) {
