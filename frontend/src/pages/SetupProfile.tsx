@@ -258,8 +258,15 @@ export default function SetupProfile() {
           </form>
           
           {/* User Info */}
-          <div className="mt-6 pt-4 border-t text-center text-sm text-muted-foreground">
-            Signed in as {user.name || user.email}
+          <div className="mt-6 pt-4 border-t text-center text-sm text-muted-foreground flex items-center justify-center gap-3">
+            <span>Signed in as {user.name || user.email}</span>
+            <button
+              type="button"
+              onClick={() => authClient.signOut()}
+              className="text-orange-500 hover:text-orange-700 underline"
+            >
+              Sign out
+            </button>
           </div>
         </CardContent>
       </Card>
