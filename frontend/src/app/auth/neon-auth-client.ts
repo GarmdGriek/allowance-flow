@@ -28,8 +28,14 @@ export const authClient = createAuthClient({
 /** Fetch a signed JWT from Neon Auth to use as a Bearer token for the backend. */
 export async function getNeonJwt(): Promise<string | null> {
   try {
-    const url = `${__NEON_AUTH_URL__}/api/auth/token`;
-    const res = await fetch(url, { credentials: "include" });
+    // NEON_AUTH_URL already includes /auth, so /token gives .../auth/token
+    const url = `${__NEON_AUTH_URL__}/token`;
+    const res = await fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+    });
+    console.debug("[auth] /token status:", res.status);
     if (!res.ok) {
       console.warn("[auth] /token returned", res.status);
       return null;
