@@ -45,19 +45,24 @@ async function tryGetJwt(): Promise<string | null> {
         method: "GET",
         credentials: "include",
       });
-      if (res.ok) {
-        const data = await res.json();
+      const text = await res.text();
+      console.debug(`[auth] ${endpoint} → ${res.status} body=${text.slice(0, 300)}`);
+      if (res.ok && text) {
+        const data = JSON.parse(text);
         const token: string | undefined = data?.token ?? data?.accessToken ?? data?.idToken;
-        // JWTs have two dots; opaque tokens don't
+        // JWTs have exactly two dots (three segments)
         if (token && token.split(".").length === 3) {
           console.debug(`[auth] got JWT from ${endpoint}`);
           return token;
         }
-      } else {
-        console.debug(`[auth] ${endpoint} → ${res.status}`);
+        // Log all string fields so we can see what's actually in the response
+        const stringFields = Object.entries(data ?? {})
+          .filter(([, v]) => typeof v === "string")
+          .map(([k, v]) => `${k}=${String(v).slice(0, 60)}`);
+        console.debug(`[auth] ${endpoint} string fields:`, stringFields);
       }
-    } catch {
-      // endpoint not available
+    } catch (e) {
+      console.debug(`[auth] ${endpoint} error:`, e);
     }
   }
   return null;
