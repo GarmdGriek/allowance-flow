@@ -28,16 +28,28 @@ export const authClient = createAuthClient({
 /** Fetch a signed JWT from Neon Auth to use as a Bearer token for the backend. */
 export async function getNeonJwt(): Promise<string | null> {
   try {
-    // NEON_AUTH_URL already includes /auth, so /token gives .../auth/token
+    // Get the opaque session token first
+    const session = await authClient.getSession();
+    const sessionToken = (session?.data as any)?.session?.token ?? null;
+    if (!sessionToken) {
+      console.warn("[auth] no session token available");
+      return null;
+    }
+
+    // Exchange session token for a signed JWT via Neon Auth's /token endpoint
     const url = `${__NEON_AUTH_URL__}/token`;
     const res = await fetch(url, {
       method: "POST",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${sessionToken}`,
+      },
     });
     console.debug("[auth] /token status:", res.status);
     if (!res.ok) {
-      console.warn("[auth] /token returned", res.status);
+      const body = await res.text();
+      console.warn("[auth] /token error body:", body);
       return null;
     }
     const data = await res.json();
