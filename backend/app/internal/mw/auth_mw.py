@@ -372,10 +372,13 @@ async def authorize_request(
 
     url = request.url
 
-    # Try JWT validation first
-    user = authorize_token(token, url, auth_configs, audit_log, options)
-    if user is not None:
-        return user
+    # Try JWT validation first (may fail if token is opaque, not a JWT)
+    try:
+        user = authorize_token(token, url, auth_configs, audit_log, options)
+        if user is not None:
+            return user
+    except Exception:
+        pass  # Not a JWT — fall through to session validation
 
     # Fallback: validate opaque session token via Neon Auth session endpoint
     neon_auth_url = os.environ.get("NEON_AUTH_ISSUER", "")
