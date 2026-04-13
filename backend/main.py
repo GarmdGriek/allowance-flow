@@ -1,9 +1,11 @@
 import os
 import pathlib
 import json
+import traceback
 import dotenv
-from fastapi import FastAPI, APIRouter, Depends
+from fastapi import FastAPI, APIRouter, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # Load environment files
 # First load shared .env file
@@ -127,6 +129,18 @@ def parse_auth_configs() -> list[AuthConfig]:
 def create_app() -> FastAPI:
     """Create the app. This is called by uvicorn with the factory option to construct the app object."""
     app = FastAPI()
+
+    # Global exception handler: catches unhandled errors so they return JSON
+    # WITH CORS headers (without this, Starlette's ServerErrorMiddleware returns
+    # a plain 500 before CORS middleware can add the Allow-Origin header).
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+        print(f"[error] Unhandled exception on {request.method} {request.url.path}: {exc}")
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error", "error": str(exc)},
+        )
 
     # CORS — allow frontend origin(s)
     allowed_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
