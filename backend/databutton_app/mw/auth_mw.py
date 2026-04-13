@@ -156,20 +156,25 @@ async def authorize_request(
 
 
 async def validate_neon_session(token: str, neon_auth_url: str) -> User | None:
-    """Validate a Neon Auth opaque session token by calling the session endpoint."""
+    """Validate a Neon Auth opaque session token by calling the session endpoint.
+    Better Auth expects the session token as a cookie, not an Authorization header.
+    """
     try:
         url = f"{neon_auth_url}/get-session"
         print(f"[auth] calling {url}")
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(
                 url,
-                headers={"Authorization": f"Bearer {token}"},
+                headers={"Cookie": f"better-auth.session_token={token}"},
             )
-            print(f"[auth] get-session status={response.status_code}")
+            print(f"[auth] get-session status={response.status_code} body={response.text[:200]}")
             if response.status_code == 200:
                 data = response.json()
+                if data is None:
+                    print("[auth] get-session returned null (session expired or token invalid)")
+                    return None
                 print(f"[auth] get-session data keys: {list(data.keys())}")
-                user_data = data.get("user", {})
+                user_data = data.get("user") or {}
                 user_id = user_data.get("id")
                 if user_id:
                     return User(
