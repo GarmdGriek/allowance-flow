@@ -216,10 +216,19 @@ def authorize_token_jwt(
     print(f"[auth] JWT header: alg={token_alg!r} kid={token_kid!r} iss={token_iss!r}")
 
     for auth_config in auth_configs:
-        # Skip if issuer is present and doesn't match (allow missing iss — Neon Auth omits it)
-        if token_iss is not None and token_iss != auth_config.issuer:
-            print(f"[auth] Issuer mismatch: token has {token_iss!r}, config has {auth_config.issuer!r}")
-            continue
+        # Skip if issuer is present and clearly doesn't match.
+        # Be lenient: Neon Auth JWTs use the base domain as iss (e.g. https://host)
+        # while NEON_AUTH_ISSUER includes the auth path (e.g. https://host/neondb/auth).
+        # Allow if one is a prefix of the other so both forms are accepted.
+        if token_iss is not None:
+            iss_ok = (
+                token_iss == auth_config.issuer
+                or auth_config.issuer.startswith(token_iss)
+                or token_iss.startswith(auth_config.issuer)
+            )
+            if not iss_ok:
+                print(f"[auth] Issuer mismatch: token has {token_iss!r}, config has {auth_config.issuer!r}")
+                continue
 
         # Try primary JWKS URL, then fallbacks
         all_jwks_urls = [auth_config.jwks_url] + auth_config.jwks_url_fallbacks
