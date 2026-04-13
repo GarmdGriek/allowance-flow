@@ -35,8 +35,14 @@ const fetchWithAuthRetry = async (url: RequestInfo | URL, options?: RequestInit)
 
   if (response.status !== 401) return response;
 
-  // Don't trigger sign-out while already on an auth page — avoids redirect loops
-  if (window.location.pathname.startsWith("/auth")) return response;
+  // Don't trigger sign-out while on auth pages or during OAuth callback (verifier in URL)
+  // The verifier is one-time-use — consuming it here breaks UserGuard's session setup
+  if (
+    window.location.pathname.startsWith("/auth") ||
+    new URLSearchParams(window.location.search).has("neon_auth_session_verifier")
+  ) {
+    return response;
+  }
 
   // Only one refresh attempt at a time; reset after 10 s to allow future retries
   if (!tokenRefreshPromise) {
