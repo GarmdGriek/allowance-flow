@@ -26,8 +26,8 @@ export const userRoutes: RouteObject[] = [
 	{ path: "/familysettings", element: <UserGuard><FamilySettings /></UserGuard> },
 	{ path: "/profile-settings", element: <UserGuard><ProfileSettings /></UserGuard> },
 	{ path: "/profilesettings", element: <UserGuard><ProfileSettings /></UserGuard> },
-	{ path: "/setup-profile", element: <UserGuard><SetupProfile /></UserGuard> },
-	{ path: "/setupprofile", element: <UserGuard><SetupProfile /></UserGuard> },
+	{ path: "/setup-profile", element: <SetupProfile /> },
+	{ path: "/setupprofile", element: <SetupProfile /> },
 	{ path: "/task-management", element: <UserGuard><TaskManagement /></UserGuard> },
 	{ path: "/taskmanagement", element: <UserGuard><TaskManagement /></UserGuard> },
 

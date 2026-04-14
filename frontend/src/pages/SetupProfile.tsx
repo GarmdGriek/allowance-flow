@@ -107,13 +107,48 @@ export default function SetupProfile() {
     setFamilyId(randomId);
   };
 
-  // Redirect to sign-up if not authenticated, preserve invite code
+  // If not signed in: show invite landing (so they see what they're joining before signing up)
+  // or redirect to sign-in for the regular setup flow.
   if (!user) {
     const inviteParam = searchParams.get('invite');
-    const signUpUrl = inviteParam 
-      ? `/auth/sign-up?after=${encodeURIComponent(`/setup-profile?invite=${inviteParam}`)}`
-      : '/auth/sign-up?after=/setup-profile';
-    navigate(signUpUrl);
+    if (inviteParam) {
+      // Show invite landing page — don't redirect, let them sign in from here
+      const signInUrl = `/auth/sign-in?after=${encodeURIComponent(`/setup-profile?invite=${inviteParam}`)}`;
+      const signUpUrl = `/auth/sign-up?after=${encodeURIComponent(`/setup-profile?invite=${inviteParam}`)}`;
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800 p-4">
+          <Card className="w-full max-w-md shadow-lg">
+            <CardHeader className="space-y-2">
+              <CardTitle className="text-2xl font-bold text-center">You've been invited! 🎉</CardTitle>
+              <CardDescription className="text-center">
+                Someone has invited you to join their family on Allowance Flow.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg border-2 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950 p-4 text-center">
+                <p className="text-sm font-medium">✨ Your role and family will be set up automatically when you accept.</p>
+              </div>
+              <p className="text-sm text-muted-foreground text-center">
+                Sign in or create an account to accept this invite.
+              </p>
+              <div className="flex flex-col gap-3">
+                <Button
+                  className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold"
+                  onClick={() => navigate(signInUrl)}
+                >
+                  Sign in to accept
+                </Button>
+                <Button variant="outline" className="w-full" onClick={() => navigate(signUpUrl)}>
+                  Create an account
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+    // No invite — redirect straight to sign-up
+    navigate(`/auth/sign-up?after=/setup-profile`);
     return null;
   }
 
