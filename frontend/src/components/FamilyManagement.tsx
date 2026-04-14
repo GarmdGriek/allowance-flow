@@ -80,7 +80,8 @@ export default function FamilyManagement({ familyId }: Props) {
 
   const handleCopyInviteLink = (inviteCode: string) => {
     // Construct the full URL with the app's base path
-    const inviteUrl = `${window.location.origin}${APP_BASE_PATH}/setup-profile?invite=${inviteCode}`;
+    const base = APP_BASE_PATH.endsWith("/") ? APP_BASE_PATH.slice(0, -1) : APP_BASE_PATH;
+    const inviteUrl = `${window.location.origin}${base}/setup-profile?invite=${inviteCode}`;
     navigator.clipboard.writeText(inviteUrl);
     setCopiedCode(inviteCode);
     toast.success(t("family.inviteLinkCopied"));
