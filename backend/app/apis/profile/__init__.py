@@ -56,7 +56,16 @@ async def get_my_profile(user: AuthorizedUser) -> ProfileResponse:
         
         if not row:
             raise HTTPException(status_code=404, detail="Profile not found")
-        
+
+        user_info = None
+        try:
+            user_info = await conn.fetchrow(
+                "SELECT name, email FROM neon_auth.users_sync WHERE id = $1",
+                user.sub
+            )
+        except Exception as e:
+            print(f"[profile] neon_auth.users_sync query failed (sync not configured?): {e}")
+
         return ProfileResponse(
             user_id=row["user_id"],
             role=row["role"],
@@ -64,7 +73,9 @@ async def get_my_profile(user: AuthorizedUser) -> ProfileResponse:
             currency=row["currency"],
             status=row["status"],
             created_at=row["created_at"].isoformat(),
-            updated_at=row["updated_at"].isoformat()
+            updated_at=row["updated_at"].isoformat(),
+            name=(user_info["name"] if user_info else None) or user.name,
+            email=(user_info["email"] if user_info else None) or user.email,
         )
     finally:
         await conn.close()
@@ -192,12 +203,17 @@ async def setup_profile(body: CreateProfileRequest, user: AuthorizedUser) -> Pro
             final_status
         )
         
-        # Try to get user info from Stack Auth sync table (might not exist yet)
-        user_info = await conn.fetchrow(
-            "SELECT name, email FROM neon_auth.users_sync WHERE id = $1",
-            user.sub
-        )
-        
+        # Try to get user info from Neon Auth sync table (may not exist if sync not configured)
+        user_info = None
+        try:
+            user_info = await conn.fetchrow(
+                "SELECT name, email FROM neon_auth.users_sync WHERE id = $1",
+                user.sub
+            )
+        except Exception as e:
+            print(f"[profile] neon_auth.users_sync query failed (sync not configured?): {e}")
+
+        # Fall back to name/email from JWT (passed as user object from auth middleware)
         return ProfileResponse(
             user_id=profile["user_id"],
             role=profile["role"],
@@ -206,8 +222,8 @@ async def setup_profile(body: CreateProfileRequest, user: AuthorizedUser) -> Pro
             status=profile["status"],
             created_at=profile["created_at"].isoformat(),
             updated_at=profile["updated_at"].isoformat(),
-            name=user_info["name"] if user_info else None,
-            email=user_info["email"] if user_info else None
+            name=(user_info["name"] if user_info else None) or user.name,
+            email=(user_info["email"] if user_info else None) or user.email,
         )
     finally:
         await conn.close()
@@ -240,20 +256,26 @@ async def update_profile(body: CreateProfileRequest, user: AuthorizedUser) -> Pr
                 detail="Profile not found"
             )
         
-        # Get user info from Stack Auth
-        user_info = await conn.fetchrow(
-            "SELECT name, email FROM neon_auth.users_sync WHERE id = $1",
-            user.sub
-        )
-        
+        # Try to get user info from Neon Auth sync table
+        user_info = None
+        try:
+            user_info = await conn.fetchrow(
+                "SELECT name, email FROM neon_auth.users_sync WHERE id = $1",
+                user.sub
+            )
+        except Exception as e:
+            print(f"[profile] neon_auth.users_sync query failed (sync not configured?): {e}")
+
         return ProfileResponse(
             user_id=profile["user_id"],
             role=profile["role"],
             family_id=profile["family_id"],
+            currency=profile["currency"],
+            status=profile["status"],
             created_at=profile["created_at"].isoformat(),
             updated_at=profile["updated_at"].isoformat(),
-            name=user_info["name"] if user_info else None,
-            email=user_info["email"] if user_info else None
+            name=(user_info["name"] if user_info else None) or user.name,
+            email=(user_info["email"] if user_info else None) or user.email,
         )
     finally:
         await conn.close()
