@@ -22,6 +22,7 @@ class CreateProfileRequest(BaseModel):
     family_id: Optional[str] = Field(None, min_length=1, max_length=100)  # Optional if invite_code is provided
     currency: str = Field(default="USD", min_length=3, max_length=3)
     invite_code: Optional[str] = None  # Invite code from URL
+    language: str = Field(default="en", min_length=2, max_length=10)  # Family language preference
 
 
 class ProfileResponse(BaseModel):

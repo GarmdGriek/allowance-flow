@@ -13,19 +13,20 @@ export const auth = {
 };
 
 async function getAccessToken(): Promise<string | null> {
-  // Don't touch authClient during OAuth callback — the verifier is one-time-use
-  // and consuming it here prevents UserGuard from establishing the session.
-  if (typeof window !== "undefined" &&
-      new URLSearchParams(window.location.search).has("neon_auth_session_verifier")) {
-    return null;
-  }
-
-  // Try to get a JWT first (Better Auth JWT plugin, validated by JWKS on backend).
-  // GET /token is the standard Better Auth JWT plugin endpoint.
+  // Try JWT first — the /token fetch only uses cookies and is safe during the
+  // OAuth callback (it does NOT consume the neon_auth_session_verifier).
   const jwt = await tryGetJwt();
   if (jwt) {
     console.log("[auth] using JWT token");
     return jwt;
+  }
+
+  // Only call authClient.getSession() after the OAuth callback is done.
+  // authClient.getSession() can trigger interceptors that append the verifier
+  // to the request URL, consuming it before UserGuard's refetch() can use it.
+  if (typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).has("neon_auth_session_verifier")) {
+    return null;
   }
 
   // Fall back to opaque session token
