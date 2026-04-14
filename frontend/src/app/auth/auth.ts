@@ -37,34 +37,48 @@ async function getAccessToken(): Promise<string | null> {
   return (session?.data as any)?.session?.token ?? null;
 }
 
+// Cache the JWT so we don't call /token on every single API request.
+// JWTs from Neon Auth are short-lived (~5 min); cache for 4 min to stay safe.
+let cachedJwt: string | null = null;
+let cachedJwtExpiry = 0;
+let jwtFetchPromise: Promise<string | null> | null = null;
+
 /** Try to get a signed JWT from Neon Auth for backend validation via JWKS. */
 async function tryGetJwt(): Promise<string | null> {
-  const endpoints = ["/token", "/get-jwt"];
-  for (const endpoint of endpoints) {
-    try {
-      const res = await fetch(`${__NEON_AUTH_URL__}${endpoint}`, {
-        method: "GET",
-        credentials: "include",
-      });
-      const text = await res.text();
-      console.log(`[auth] ${endpoint} → ${res.status} body=${text.slice(0, 300)}`);
-      if (res.ok && text) {
-        const data = JSON.parse(text);
-        const token: string | undefined = data?.token ?? data?.accessToken ?? data?.idToken;
-        // JWTs have exactly two dots (three segments)
-        if (token && token.split(".").length === 3) {
-          console.log(`[auth] got JWT from ${endpoint}`);
-          return token;
-        }
-        // Log all string fields so we can see what's actually in the response
-        const stringFields = Object.entries(data ?? {})
-          .filter(([, v]) => typeof v === "string")
-          .map(([k, v]) => `${k}=${String(v).slice(0, 60)}`);
-        console.log(`[auth] ${endpoint} string fields:`, stringFields);
+  // Return cached token if still valid
+  if (cachedJwt && Date.now() < cachedJwtExpiry) return cachedJwt;
+
+  // Deduplicate concurrent calls — only one fetch at a time
+  if (!jwtFetchPromise) {
+    jwtFetchPromise = (async () => {
+      for (const endpoint of ["/token", "/get-jwt"]) {
+        try {
+          const res = await fetch(`${__NEON_AUTH_URL__}${endpoint}`, {
+            method: "GET",
+            credentials: "include",
+          });
+          const text = await res.text();
+          if (res.ok && text) {
+            const data = JSON.parse(text);
+            const token: string | undefined = data?.token ?? data?.accessToken ?? data?.idToken;
+            if (token && token.split(".").length === 3) {
+              console.log(`[auth] got JWT from ${endpoint}`);
+              cachedJwt = token;
+              cachedJwtExpiry = Date.now() + 4 * 60 * 1000; // 4 minutes
+              return token;
+            }
+          }
+        } catch { /* try next endpoint */ }
       }
-    } catch (e) {
-      console.log(`[auth] ${endpoint} error:`, e);
-    }
+      return null;
+    })().finally(() => { jwtFetchPromise = null; });
   }
-  return null;
+
+  return jwtFetchPromise;
+}
+
+/** Call this on sign-out to clear the cached JWT. */
+export function clearJwtCache(): void {
+  cachedJwt = null;
+  cachedJwtExpiry = 0;
 }

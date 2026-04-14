@@ -90,7 +90,7 @@ export default function FamilyManagement({ familyId }: Props) {
 
   const handleRevokeInvite = async (inviteId: string) => {
     try {
-      await apiClient.revoke_invite({ inviteId });
+      await apiClient.revoke_invite(inviteId);
       setInvites(invites.filter(i => i.id !== inviteId));
       toast.success(t("family.inviteRevoked"));
     } catch (error) {
