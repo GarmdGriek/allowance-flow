@@ -384,40 +384,6 @@ export default function App() {
            window.innerWidth < 768;
   };
 
-  const handleVippsPay = (child: Child) => {
-    if (!child.phone_number) {
-      toast.error("Legg til telefonnummer for å bruke Vipps");
-      return;
-    }
-    
-    if (child.pending <= 0) {
-      toast.info("Ingen utestående lommepenger å betale");
-      return;
-    }
-
-    // Format phone number for display
-    const phoneNumber = child.phone_number.replace(/\s+/g, '').replace(/\D/g, '');
-    const formattedAmount = `${currencySymbol}${child.pending}`;
-    
-    // Copy amount to clipboard
-    navigator.clipboard.writeText(child.pending.toString()).then(() => {
-      toast.success(
-        `Beløp ${formattedAmount} kopiert! Åpne Vipps og send til ${phoneNumber}`,
-        { duration: 6000 }
-      );
-    }).catch(() => {
-      toast.info(
-        `Send ${formattedAmount} til ${phoneNumber} i Vipps`,
-        { duration: 6000 }
-      );
-    });
-
-    // Open Vipps app (this will open the app but user needs to manually enter payment)
-    setTimeout(() => {
-      window.location.href = 'vipps://';
-    }, 500);
-  };
-
   const handleCopyAmount = (child: Child) => {
     if (child.pending <= 0) {
       return;
@@ -428,7 +394,7 @@ export default function App() {
       setTimeout(() => setCopiedAmount(null), 2000);
     }).catch((err) => {
       console.error('Copy failed:', err);
-      toast.error("Kunne ikke kopiere beløp");
+      toast.error(t("toasts.failedToCopyAmount"));
     });
   };
 
@@ -443,7 +409,7 @@ export default function App() {
       setTimeout(() => setCopiedPhone(null), 2000);
     }).catch((err) => {
       console.error('Copy failed:', err);
-      toast.error("Kunne ikke kopiere telefonnummer");
+      toast.error(t("toasts.failedToCopyPhone"));
     });
   };
 
@@ -716,7 +682,7 @@ export default function App() {
                               <button
                                 onClick={() => handleCopyPhone(child)}
                                 className="text-muted-foreground hover:text-foreground transition-colors"
-                                title="Kopier telefonnummer"
+                                title={t("toasts.phoneNumberCopied")}
                               >
                                 {copiedPhone === child.id ? (
                                   <Check className="w-3 h-3 text-green-600" />
@@ -745,7 +711,7 @@ export default function App() {
                               <button
                                 onClick={() => handleCopyAmount(child)}
                                 className="text-muted-foreground hover:text-foreground transition-colors"
-                                title="Kopier beløp"
+                                title={t("toasts.amountCopied")}
                               >
                                 {copiedAmount === child.id ? (
                                   <Check className="w-4 h-4 text-green-600" />

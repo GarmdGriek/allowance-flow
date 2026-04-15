@@ -23,6 +23,30 @@ import {
   WeeklySummaryResult,
   WeeklySummarySettingsResponse,
 } from "./data-contracts";
+
+// Inline types for child account creation (not yet in generated data-contracts)
+export interface CreateChildAccountRequest {
+  display_name: string;
+  pin: string;
+  currency?: string;
+}
+export interface ChildAccountResponse {
+  user_id: string;
+  display_name: string;
+  username: string;
+  virtual_email: string;
+  family_id: string;
+  currency: string;
+}
+export interface ChildSignInRequest {
+  username: string;
+  family_id: string;
+  pin: string;
+}
+export interface ChildSignInResponse {
+  virtual_email: string;
+  auth_token: string;
+}
 import { ContentType, HttpClient, RequestParams } from "./http-client";
 
 export class Apiclient<SecurityDataType = unknown> extends HttpClient<SecurityDataType> {
@@ -130,6 +154,24 @@ export class Apiclient<SecurityDataType = unknown> extends HttpClient<SecurityDa
     this.request<Record<string, any>, any>({
       path: `/api/family/invites/${inviteId}`,
       method: "DELETE",
+      ...params,
+    });
+
+  create_child_account = (body: CreateChildAccountRequest, params: RequestParams = {}) =>
+    this.request<ChildAccountResponse, any>({
+      path: `/api/family/children/create-account`,
+      method: "POST",
+      body,
+      type: ContentType.Json,
+      ...params,
+    });
+
+  update_child_pin = (childUserId: string, newPin: string, params: RequestParams = {}) =>
+    this.request<Record<string, any>, any>({
+      path: `/api/family/children/${childUserId}/pin`,
+      method: "PUT",
+      body: { new_pin: newPin },
+      type: ContentType.Json,
       ...params,
     });
 
@@ -254,6 +296,17 @@ export class Apiclient<SecurityDataType = unknown> extends HttpClient<SecurityDa
     this.request<WeeklySummaryResult, any>({
       path: `/api/weekly-summary`,
       method: "POST",
+      ...params,
+    });
+
+  // --- Child auth ---
+
+  child_sign_in = (body: ChildSignInRequest, params: RequestParams = {}) =>
+    this.request<ChildSignInResponse, any>({
+      path: `/api/child-auth/sign-in`,
+      method: "POST",
+      body,
+      type: ContentType.Json,
       ...params,
     });
 }

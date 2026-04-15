@@ -6,7 +6,11 @@ Handles invite creation, member approval, and family member management.
 """
 
 import asyncpg
+import base64
+import hashlib
+import httpx
 import os
+import re
 import secrets
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, status
@@ -78,6 +82,28 @@ class UpdateChildRequest(BaseModel):
     email: Optional[str] = None
     password: Optional[str] = None
     phone_number: Optional[str] = None  # For Vipps payment integration
+
+
+class CreateChildAccountRequest(BaseModel):
+    """Request for parent to create a child account directly (no email needed)."""
+    display_name: str = Field(..., min_length=1, max_length=50)
+    pin: str = Field(..., min_length=4, max_length=8, pattern=r"^\d+$")
+    currency: str = Field(default="USD", min_length=3, max_length=3)
+
+
+class ChildAccountResponse(BaseModel):
+    """Response after creating a child account, includes login credentials."""
+    user_id: str
+    display_name: str
+    username: str        # The part before @allowanceflow.app — shown to the child
+    virtual_email: str   # Full virtual email used internally
+    family_id: str
+    currency: str
+
+
+class UpdateChildPinRequest(BaseModel):
+    """Request for parent to change a child's PIN."""
+    new_pin: str = Field(..., min_length=4, max_length=8, pattern=r"^\d+$")
 
 
 class WeeklySummarySettingsResponse(BaseModel):
@@ -759,3 +785,176 @@ async def update_weekly_summary_settings(
         )
     finally:
         await conn.close()
+
+
+def _hash_pin(pin: str) -> str:
+    """Return a salted PBKDF2-SHA256 hash of a PIN, safe to store in the DB."""
+    salt = secrets.token_bytes(16)
+    dk = hashlib.pbkdf2_hmac("sha256", pin.encode("utf-8"), salt, 200_000)
+    return base64.b64encode(salt).decode() + ":" + base64.b64encode(dk).decode()
+
+
+def _verify_pin(pin: str, stored_hash: str) -> bool:
+    """Constant-time verification of a PIN against a stored hash."""
+    try:
+        salt_b64, dk_b64 = stored_hash.split(":", 1)
+        salt = base64.b64decode(salt_b64)
+        expected = base64.b64decode(dk_b64)
+        dk = hashlib.pbkdf2_hmac("sha256", pin.encode("utf-8"), salt, 200_000)
+        return hashlib.compare_digest(dk, expected)
+    except Exception:
+        return False
+
+
+def _make_username_slug(display_name: str) -> str:
+    """Convert a display name to a URL-safe lowercase slug for the virtual email."""
+    slug = display_name.lower().strip()
+    slug = re.sub(r"[^a-z0-9]+", ".", slug)  # replace non-alphanumeric runs with dot
+    slug = slug.strip(".")
+    return slug or "child"
+
+
+@router.post("/children/create-account", response_model=ChildAccountResponse, status_code=status.HTTP_201_CREATED)
+async def create_child_account(body: CreateChildAccountRequest, user: AuthorizedUser) -> ChildAccountResponse:
+    """Parent creates a child account directly using a display name + PIN.
+
+    No real email address needed. A virtual email is generated in the form
+    {slug}.{familyId}@allowanceflow.app so the child can log in with just
+    their name and PIN from the simplified child login page.
+    """
+    neon_auth_url = os.environ.get("NEON_AUTH_ISSUER", "").rstrip("/")
+    if not neon_auth_url:
+        raise HTTPException(status_code=500, detail="Auth service not configured")
+
+    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
+    try:
+        # Verify caller is a parent
+        profile = await conn.fetchrow(
+            "SELECT family_id, role FROM user_profiles WHERE user_id = $1 AND status = 'active'",
+            user.sub,
+        )
+        if not profile:
+            raise HTTPException(status_code=403, detail="Active profile required")
+        if profile["role"] != "parent":
+            raise HTTPException(status_code=403, detail="Only parents can create child accounts")
+
+        family_id: str = profile["family_id"]
+        slug = _make_username_slug(body.display_name)
+
+        # Ensure uniqueness within the family by appending a short random suffix if needed
+        base_slug = slug
+        attempt = 0
+        while True:
+            candidate = f"{base_slug}{('.' + secrets.token_hex(2)) if attempt else ''}"
+            virtual_email = f"{candidate}.{family_id}@allowanceflow.app"
+            existing = await conn.fetchval(
+                "SELECT user_id FROM user_profiles WHERE family_id = $1 AND user_id IN "
+                "(SELECT id FROM neon_auth.users_sync WHERE email = $2)",
+                family_id, virtual_email,
+            )
+            if not existing:
+                slug = candidate
+                break
+            attempt += 1
+            if attempt > 10:
+                raise HTTPException(status_code=409, detail="Could not generate unique username")
+
+        virtual_email = f"{slug}.{family_id}@allowanceflow.app"
+
+        # Generate a random internal auth token (used as the Better Auth password).
+        # The PIN is stored separately as a hash — this way changing the PIN is a
+        # pure DB operation and never requires a Better Auth admin API.
+        child_auth_token = secrets.token_urlsafe(32)
+        pin_hash = _hash_pin(body.pin)
+
+        # Ensure the pin_hash / child_auth_token columns exist (idempotent migration).
+        await conn.execute(
+            "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS pin_hash VARCHAR"
+        )
+        await conn.execute(
+            "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS child_auth_token VARCHAR"
+        )
+
+        # Create the Neon Auth account using the random token as the password.
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                f"{neon_auth_url}/sign-up/email",
+                json={"email": virtual_email, "password": child_auth_token, "name": body.display_name},
+            )
+            if resp.status_code not in (200, 201):
+                detail = resp.text[:200]
+                raise HTTPException(status_code=502, detail=f"Failed to create auth account: {detail}")
+            auth_data = resp.json()
+
+        child_user_id: str = (
+            auth_data.get("user", {}).get("id")
+            or auth_data.get("id")
+            or auth_data.get("userId")
+        )
+        if not child_user_id:
+            raise HTTPException(status_code=502, detail="Auth service did not return a user ID")
+
+        # Create the profile — active immediately since parent is creating it.
+        # Store pin_hash and child_auth_token so the child can log in with PIN only.
+        await conn.execute(
+            """
+            INSERT INTO user_profiles (user_id, role, family_id, currency, status, name, pin_hash, child_auth_token)
+            VALUES ($1, 'child', $2, $3, 'active', $4, $5, $6)
+            ON CONFLICT (user_id) DO UPDATE SET
+                pin_hash = EXCLUDED.pin_hash,
+                child_auth_token = EXCLUDED.child_auth_token
+            """,
+            child_user_id, family_id, body.currency, body.display_name, pin_hash, child_auth_token,
+        )
+
+        return ChildAccountResponse(
+            user_id=child_user_id,
+            display_name=body.display_name,
+            username=slug,
+            virtual_email=virtual_email,
+            family_id=family_id,
+            currency=body.currency,
+        )
+    finally:
+        await conn.close()
+
+
+@router.put("/children/{child_user_id}/pin")
+async def update_child_pin(child_user_id: str, body: UpdateChildPinRequest, user: AuthorizedUser) -> dict:
+    """Parent changes a child's PIN.
+
+    The PIN is stored as a PBKDF2 hash in user_profiles — no Better Auth admin
+    API needed, so this works with Neon Auth's hosted instance.
+    """
+    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
+    try:
+        # Verify caller is a parent in the same family as the child
+        parent_profile = await conn.fetchrow(
+            "SELECT family_id, role FROM user_profiles WHERE user_id = $1 AND status = 'active'",
+            user.sub,
+        )
+        if not parent_profile or parent_profile["role"] != "parent":
+            raise HTTPException(status_code=403, detail="Only parents can change child PINs")
+
+        child_profile = await conn.fetchrow(
+            "SELECT family_id, role FROM user_profiles WHERE user_id = $1",
+            child_user_id,
+        )
+        if not child_profile:
+            raise HTTPException(status_code=404, detail="Child not found")
+        if child_profile["family_id"] != parent_profile["family_id"]:
+            raise HTTPException(status_code=403, detail="Child is not in your family")
+        if child_profile["role"] != "child":
+            raise HTTPException(status_code=400, detail="User is not a child")
+
+        new_pin_hash = _hash_pin(body.new_pin)
+        result = await conn.execute(
+            "UPDATE user_profiles SET pin_hash = $1, updated_at = NOW() WHERE user_id = $2",
+            new_pin_hash, child_user_id,
+        )
+        if result == "UPDATE 0":
+            raise HTTPException(status_code=404, detail="Child profile not found")
+    finally:
+        await conn.close()
+
+    return {"success": True}

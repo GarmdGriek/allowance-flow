@@ -38,7 +38,7 @@ export default function ProfileSettings() {
         }
       } catch (error) {
         console.error("Error loading profile:", error);
-        toast.error("Failed to load profile");
+        toast.error(t("profile.failedToLoad"));
       } finally {
         setIsFetching(false);
       }
@@ -81,13 +81,13 @@ export default function ProfileSettings() {
       if (response.ok) {
         const updated = await response.json();
         setProfile(updated);
-        toast.success("Profile updated successfully!");
+        toast.success(t("profile.profileUpdated"));
       } else {
-        toast.error("Failed to update profile");
+        toast.error(t("profile.failedToUpdate"));
       }
     } catch (error) {
       console.error("Error updating profile:", error);
-      toast.error("An error occurred while updating your profile");
+      toast.error(t("profile.errorUpdating"));
     } finally {
       setIsLoading(false);
     }
@@ -105,11 +105,11 @@ export default function ProfileSettings() {
         setEffectiveLanguage(newEffective);
         i18n.changeLanguage(newEffective);
       } else {
-        toast.error("Failed to update language preference");
+        toast.error(t("profile.failedToUpdateLanguage"));
       }
     } catch (error) {
       console.error("Error updating language:", error);
-      toast.error("An error occurred while updating your language preference");
+      toast.error(t("profile.errorUpdatingLanguage"));
     } finally {
       setIsLoading(false);
     }

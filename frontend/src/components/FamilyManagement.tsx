@@ -32,6 +32,17 @@ export default function FamilyManagement({ familyId }: Props) {
   const [editingChildName, setEditingChildName] = useState("");
   const [editingChildPhone, setEditingChildPhone] = useState("");
 
+  // Create child account (no email needed)
+  const [showCreateChild, setShowCreateChild] = useState(false);
+  const [newChildName, setNewChildName] = useState("");
+  const [newChildPin, setNewChildPin] = useState("");
+  const [isCreatingChild, setIsCreatingChild] = useState(false);
+  const [createdChild, setCreatedChild] = useState<{ username: string; display_name: string } | null>(null);
+
+  // PIN change
+  const [changingPinForId, setChangingPinForId] = useState<string | null>(null);
+  const [newPin, setNewPin] = useState("");
+
   // Load invites and pending members
   const loadData = async () => {
     try {
@@ -57,6 +68,39 @@ export default function FamilyManagement({ familyId }: Props) {
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleCreateChildAccount = async () => {
+    if (!newChildName.trim()) { toast.error(t("family.childNameRequired")); return; }
+    if (!/^\d{4,8}$/.test(newChildPin)) { toast.error(t("family.pinInvalid")); return; }
+    setIsCreatingChild(true);
+    try {
+      const res = await apiClient.create_child_account({ display_name: newChildName.trim(), pin: newChildPin });
+      const data = await res.json();
+      setCreatedChild({ username: data.username, display_name: data.display_name });
+      setNewChildName("");
+      setNewChildPin("");
+      await loadData();
+      toast.success(t("family.childAccountCreatedFor", { name: data.display_name }));
+    } catch (err) {
+      console.error(err);
+      toast.error(t("family.failedToCreateChildAccount"));
+    } finally {
+      setIsCreatingChild(false);
+    }
+  };
+
+  const handleUpdatePin = async (childUserId: string) => {
+    if (!/^\d{4,8}$/.test(newPin)) { toast.error(t("family.pinInvalid")); return; }
+    try {
+      await apiClient.update_child_pin(childUserId, newPin);
+      setChangingPinForId(null);
+      setNewPin("");
+      toast.success(t("family.pinUpdated"));
+    } catch (err) {
+      console.error(err);
+      toast.error(t("family.failedToUpdatePin"));
+    }
+  };
 
   const handleCreateInvite = async () => {
     setIsLoading(true);
@@ -179,6 +223,54 @@ export default function FamilyManagement({ familyId }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Create Child Account */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>{t("family.addChildTitle")}</CardTitle>
+              <CardDescription>{t("family.addChildDescription")}</CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => { setShowCreateChild(!showCreateChild); setCreatedChild(null); }}>
+              {showCreateChild ? t("family.cancelButton") : t("family.addChildButton")}
+            </Button>
+          </div>
+        </CardHeader>
+        {showCreateChild && (
+          <CardContent className="space-y-3">
+            {createdChild ? (
+              <div className="rounded-lg border-2 border-green-200 bg-green-50 dark:bg-green-950 p-4 space-y-2">
+                <p className="font-semibold text-green-800 dark:text-green-200">
+                  {t("family.childAccountCreatedFor", { name: createdChild.display_name })}
+                </p>
+                <p className="text-sm text-muted-foreground">{t("family.childSignInInstructions")}</p>
+                <div className="font-mono text-sm bg-white dark:bg-gray-900 rounded p-2">
+                  <p><span className="text-muted-foreground">{t("family.childUsernameLabel")}</span> <strong>{createdChild.username}</strong></p>
+                  <p><span className="text-muted-foreground">{t("family.childPinLabel")}</span> <strong>{t("family.childPinSet")}</strong></p>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => { setCreatedChild(null); setShowCreateChild(false); }}>
+                  {t("family.done")}
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label>{t("family.childNameLabel")}</Label>
+                  <Input placeholder={t("family.namePlaceholder")} value={newChildName} onChange={(e) => setNewChildName(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>{t("family.pinLabel")}</Label>
+                  <Input type="password" inputMode="numeric" placeholder="••••" maxLength={8} value={newChildPin} onChange={(e) => setNewChildPin(e.target.value.replace(/\D/g, ""))} />
+                </div>
+                <Button onClick={handleCreateChildAccount} disabled={isCreatingChild} className="w-full">
+                  {isCreatingChild ? t("family.creatingAccount") : t("family.createAccount")}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
       {/* Children Management Section */}
       {children.length > 0 && (
         <Card>
@@ -220,7 +312,7 @@ export default function FamilyManagement({ familyId }: Props) {
                             const value = e.target.value.replace(/[^0-9\s]/g, '').slice(0, 11);
                             setEditingChildPhone(value);
                           }}
-                          placeholder="12 34 56 78"
+                          placeholder={t("family.phonePlaceholder")}
                           maxLength={11}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
@@ -274,17 +366,34 @@ export default function FamilyManagement({ familyId }: Props) {
                       </Button>
                     </>
                   ) : (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleStartEditChild(child)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Edit2 className="w-4 h-4 mr-1" />
-                      {t("common.edit")}
-                    </Button>
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button size="sm" variant="ghost" onClick={() => handleStartEditChild(child)}>
+                        <Edit2 className="w-4 h-4 mr-1" />
+                        {t("common.edit")}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => { setChangingPinForId(child.user_id); setNewPin(""); }}>
+                        {t("family.changePin")}
+                      </Button>
+                    </div>
                   )}
                 </div>
+                {/* Inline PIN change form */}
+                {changingPinForId === child.user_id && (
+                  <div className="mt-2 pt-2 border-t flex gap-2 items-center">
+                    <Input
+                      type="password"
+                      inputMode="numeric"
+                      placeholder={t("family.newPinPlaceholder")}
+                      maxLength={8}
+                      value={newPin}
+                      onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
+                      className="max-w-[160px]"
+                      autoFocus
+                    />
+                    <Button size="sm" onClick={() => handleUpdatePin(child.user_id)}>{t("common.save")}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setChangingPinForId(null); setNewPin(""); }}>{t("common.cancel")}</Button>
+                  </div>
+                )}
               </div>
             ))}
           </CardContent>

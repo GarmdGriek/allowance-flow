@@ -70,11 +70,11 @@ export default function FamilySettings() {
         i18n.changeLanguage(familyLanguage);
       } else {
         const data = await response.json();
-        toast.error(data.message || "Failed to update family language");
+        toast.error(data.message || t("family.failedToUpdateFamilyLanguage"));
       }
     } catch (error) {
       console.error("Error updating family language:", error);
-      toast.error("An error occurred while updating family language");
+      toast.error(t("family.failedToUpdateFamilyLanguage"));
     } finally {
       setIsSavingLanguage(false);
     }
@@ -89,11 +89,11 @@ export default function FamilySettings() {
         toast.success(t("family.notificationsUpdated"));
       } else {
         const data = await response.json();
-        toast.error(data.message || "Failed to update notification settings");
+        toast.error(data.message || t("family.failedToUpdateNotifications"));
       }
     } catch (error) {
       console.error("Error updating notification settings:", error);
-      toast.error("An error occurred while updating notification settings");
+      toast.error(t("family.failedToUpdateNotifications"));
     } finally {
       setIsSavingNotifications(false);
     }
@@ -140,19 +140,19 @@ export default function FamilySettings() {
           <div className="max-w-2xl mx-auto">
             <Card>
               <CardHeader>
-                <CardTitle>{t("family.weeklyNotifications") || "Weekly Notifications"}</CardTitle>
+                <CardTitle>{t("family.weeklyNotifications")}</CardTitle>
                 <CardDescription>
-                  {t("family.weeklyNotificationsDescription") || "Get a weekly summary of each child's activity and earnings"}
+                  {t("family.weeklyNotificationsDescription")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label htmlFor="notifications-enabled">
-                      {t("family.enableWeeklySummary") || "Enable weekly summaries"}
+                      {t("family.enableWeeklySummary")}
                     </Label>
                     <p className="text-sm text-muted-foreground">
-                      {t("family.sendWeeklySummaryDescription") || "Receive notifications about your children's progress"}
+                      {t("family.sendWeeklySummaryDescription")}
                     </p>
                   </div>
                   <Switch
@@ -168,7 +168,7 @@ export default function FamilySettings() {
                   <>
                     <div className="space-y-2">
                       <Label htmlFor="notification-day">
-                        {t("family.sendOn") || "Send on"}
+                        {t("family.sendOn")}
                       </Label>
                       <select
                         id="notification-day"
@@ -176,19 +176,19 @@ export default function FamilySettings() {
                         onChange={(e) => setNotificationSettings(prev => ({ ...prev, day: parseInt(e.target.value) }))}
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       >
-                        <option value="0">{t("days.sunday") || "Sunday"}</option>
-                        <option value="1">{t("days.monday") || "Monday"}</option>
-                        <option value="2">{t("days.tuesday") || "Tuesday"}</option>
-                        <option value="3">{t("days.wednesday") || "Wednesday"}</option>
-                        <option value="4">{t("days.thursday") || "Thursday"}</option>
-                        <option value="5">{t("days.friday") || "Friday"}</option>
-                        <option value="6">{t("days.saturday") || "Saturday"}</option>
+                        <option value="0">{t("days.sunday")}</option>
+                        <option value="1">{t("days.monday")}</option>
+                        <option value="2">{t("days.tuesday")}</option>
+                        <option value="3">{t("days.wednesday")}</option>
+                        <option value="4">{t("days.thursday")}</option>
+                        <option value="5">{t("days.friday")}</option>
+                        <option value="6">{t("days.saturday")}</option>
                       </select>
                     </div>
                     
                     <div className="space-y-2">
                       <Label htmlFor="notification-hour">
-                        {t("family.sendAt") || "Send at"}
+                        {t("family.sendAt")}
                       </Label>
                       <select
                         id="notification-hour"
