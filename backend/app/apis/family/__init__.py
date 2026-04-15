@@ -806,10 +806,30 @@ def _verify_pin(pin: str, stored_hash: str) -> bool:
         return False
 
 
+_CHAR_MAP: dict[str, str] = {
+    # Norwegian / Nordic
+    "å": "a", "ø": "o", "æ": "ae",
+    # German umlauts
+    "ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss",
+    # French / Spanish / Portuguese accents
+    "à": "a", "â": "a", "á": "a", "ã": "a",
+    "è": "e", "ê": "e", "é": "e", "ë": "e",
+    "î": "i", "í": "i", "ì": "i", "ï": "i",
+    "ô": "o", "ó": "o", "ò": "o", "õ": "o",
+    "û": "u", "ú": "u", "ù": "u",
+    "ç": "c", "ñ": "n",
+}
+
+
 def _make_username_slug(display_name: str) -> str:
-    """Convert a display name to a URL-safe lowercase slug for the virtual email."""
+    """Convert a display name to a URL-safe ASCII lowercase slug.
+
+    Transliterates common accented/Nordic characters before stripping so that
+    e.g. 'Vårin' → 'varin' rather than 'v.rin'.
+    """
     slug = display_name.lower().strip()
-    slug = re.sub(r"[^a-z0-9]+", ".", slug)  # replace non-alphanumeric runs with dot
+    slug = "".join(_CHAR_MAP.get(c, c) for c in slug)
+    slug = re.sub(r"[^a-z0-9]+", ".", slug)
     slug = slug.strip(".")
     return slug or "child"
 
@@ -841,16 +861,17 @@ async def create_child_account(body: CreateChildAccountRequest, user: Authorized
         family_id: str = profile["family_id"]
         slug = _make_username_slug(body.display_name)
 
+        # Ensure the username column exists before uniqueness check
+        await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS username VARCHAR")
+
         # Ensure uniqueness within the family by appending a short random suffix if needed
         base_slug = slug
         attempt = 0
         while True:
             candidate = f"{base_slug}{('.' + secrets.token_hex(2)) if attempt else ''}"
-            virtual_email = f"{candidate}.{family_id}@allowanceflow.app"
             existing = await conn.fetchval(
-                "SELECT user_id FROM user_profiles WHERE family_id = $1 AND user_id IN "
-                "(SELECT id FROM neon_auth.users_sync WHERE email = $2)",
-                family_id, virtual_email,
+                "SELECT user_id FROM user_profiles WHERE family_id = $1 AND username = $2",
+                family_id, candidate,
             )
             if not existing:
                 slug = candidate
@@ -867,13 +888,10 @@ async def create_child_account(body: CreateChildAccountRequest, user: Authorized
         child_auth_token = secrets.token_urlsafe(32)
         pin_hash = _hash_pin(body.pin)
 
-        # Ensure the pin_hash / child_auth_token columns exist (idempotent migration).
-        await conn.execute(
-            "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS pin_hash VARCHAR"
-        )
-        await conn.execute(
-            "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS child_auth_token VARCHAR"
-        )
+        # Ensure the new columns exist (idempotent migration).
+        await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS pin_hash VARCHAR")
+        await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS child_auth_token VARCHAR")
+        await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS username VARCHAR")
 
         # Create the Neon Auth account using the random token as the password.
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -895,16 +913,18 @@ async def create_child_account(body: CreateChildAccountRequest, user: Authorized
             raise HTTPException(status_code=502, detail="Auth service did not return a user ID")
 
         # Create the profile — active immediately since parent is creating it.
-        # Store pin_hash and child_auth_token so the child can log in with PIN only.
+        # Store username slug, pin_hash and child_auth_token so the child can log in with
+        # username + PIN without needing to know their virtual email address.
         await conn.execute(
             """
-            INSERT INTO user_profiles (user_id, role, family_id, currency, status, name, pin_hash, child_auth_token)
-            VALUES ($1, 'child', $2, $3, 'active', $4, $5, $6)
+            INSERT INTO user_profiles (user_id, role, family_id, currency, status, name, username, pin_hash, child_auth_token)
+            VALUES ($1, 'child', $2, $3, 'active', $4, $5, $6, $7)
             ON CONFLICT (user_id) DO UPDATE SET
+                username = EXCLUDED.username,
                 pin_hash = EXCLUDED.pin_hash,
                 child_auth_token = EXCLUDED.child_auth_token
             """,
-            child_user_id, family_id, body.currency, body.display_name, pin_hash, child_auth_token,
+            child_user_id, family_id, body.currency, body.display_name, slug, pin_hash, child_auth_token,
         )
 
         return ChildAccountResponse(
