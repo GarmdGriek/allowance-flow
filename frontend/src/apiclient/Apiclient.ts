@@ -25,6 +25,12 @@ import {
 } from "./data-contracts";
 
 // Inline types for child account creation (not yet in generated data-contracts)
+export interface RenameFamilyIdRequest {
+  new_family_id: string;
+}
+export interface RenameFamilyIdResponse {
+  new_family_id: string;
+}
 export interface CreateChildAccountRequest {
   display_name: string;
   pin: string;
@@ -244,6 +250,15 @@ export class Apiclient<SecurityDataType = unknown> extends HttpClient<SecurityDa
   update_family_language = (body: UpdateFamilyLanguageRequest, params: RequestParams = {}) =>
     this.request<UpdateResponse, any>({
       path: `/api/language/family`,
+      method: "PUT",
+      body,
+      type: ContentType.Json,
+      ...params,
+    });
+
+  rename_family_id = (body: RenameFamilyIdRequest, params: RequestParams = {}) =>
+    this.request<RenameFamilyIdResponse, any>({
+      path: `/api/family/rename-id`,
       method: "PUT",
       body,
       type: ContentType.Json,

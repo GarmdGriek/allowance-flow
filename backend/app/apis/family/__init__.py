@@ -106,6 +106,21 @@ class UpdateChildPinRequest(BaseModel):
     new_pin: str = Field(..., min_length=4, max_length=8, pattern=r"^\d+$")
 
 
+class RenameFamilyIdRequest(BaseModel):
+    """Request to rename the family's public ID."""
+    new_family_id: str = Field(
+        ...,
+        min_length=3,
+        max_length=30,
+        pattern=r"^[a-z0-9][a-z0-9_-]*[a-z0-9]$",
+        description="Lowercase letters, numbers, underscores and hyphens. Must start and end with a letter or number.",
+    )
+
+
+class RenameFamilyIdResponse(BaseModel):
+    new_family_id: str
+
+
 class WeeklySummarySettingsResponse(BaseModel):
     """Response model for weekly summary notification settings."""
     enabled: bool
@@ -892,6 +907,7 @@ async def create_child_account(body: CreateChildAccountRequest, user: Authorized
         await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS pin_hash VARCHAR")
         await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS child_auth_token VARCHAR")
         await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS username VARCHAR")
+        await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS neon_email VARCHAR")
 
         # Create the Neon Auth account using the random token as the password.
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -913,18 +929,20 @@ async def create_child_account(body: CreateChildAccountRequest, user: Authorized
             raise HTTPException(status_code=502, detail="Auth service did not return a user ID")
 
         # Create the profile — active immediately since parent is creating it.
-        # Store username slug, pin_hash and child_auth_token so the child can log in with
-        # username + PIN without needing to know their virtual email address.
+        # Store username slug, neon_email, pin_hash and child_auth_token so the child
+        # can log in with username + PIN.  neon_email is the permanent email in Neon Auth
+        # — it never changes even if the family ID is later renamed.
         await conn.execute(
             """
-            INSERT INTO user_profiles (user_id, role, family_id, currency, status, name, username, pin_hash, child_auth_token)
-            VALUES ($1, 'child', $2, $3, 'active', $4, $5, $6, $7)
+            INSERT INTO user_profiles (user_id, role, family_id, currency, status, name, username, neon_email, pin_hash, child_auth_token)
+            VALUES ($1, 'child', $2, $3, 'active', $4, $5, $6, $7, $8)
             ON CONFLICT (user_id) DO UPDATE SET
                 username = EXCLUDED.username,
+                neon_email = EXCLUDED.neon_email,
                 pin_hash = EXCLUDED.pin_hash,
                 child_auth_token = EXCLUDED.child_auth_token
             """,
-            child_user_id, family_id, body.currency, body.display_name, slug, pin_hash, child_auth_token,
+            child_user_id, family_id, body.currency, body.display_name, slug, virtual_email, pin_hash, child_auth_token,
         )
 
         return ChildAccountResponse(
@@ -978,3 +996,67 @@ async def update_child_pin(child_user_id: str, body: UpdateChildPinRequest, user
         await conn.close()
 
     return {"success": True}
+
+
+@router.put("/rename-id", response_model=RenameFamilyIdResponse)
+async def rename_family_id(body: RenameFamilyIdRequest, user: AuthorizedUser) -> RenameFamilyIdResponse:
+    """Rename the family's public ID.
+
+    Only parents can do this.  The operation is atomic:
+    1. Ensure new ID is not taken.
+    2. Insert a new families row with the new ID (copy of old).
+    3. Update all child tables (user_profiles, tasks, family_invites, notifications).
+    4. Delete the old families row.
+
+    Child Neon Auth accounts are unaffected because we store `neon_email`
+    in user_profiles — child login never reconstructs the email from the ID.
+    """
+    new_id = body.new_family_id.lower().strip()
+
+    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
+    try:
+        # Verify caller is an active parent
+        profile = await conn.fetchrow(
+            "SELECT family_id, role FROM user_profiles WHERE user_id = $1 AND status = 'active'",
+            user.sub,
+        )
+        if not profile or profile["role"] != "parent":
+            raise HTTPException(status_code=403, detail="Only parents can rename the family ID")
+
+        old_id: str = profile["family_id"]
+
+        if old_id == new_id:
+            return RenameFamilyIdResponse(new_family_id=new_id)
+
+        # Check new ID is not already taken
+        exists = await conn.fetchval("SELECT id FROM families WHERE id = $1", new_id)
+        if exists:
+            raise HTTPException(status_code=409, detail="That family ID is already taken")
+
+        async with conn.transaction():
+            # 1. Copy the family row under the new ID
+            await conn.execute(
+                """
+                INSERT INTO families (id, name, language, created_at, updated_at,
+                                      weekly_summary_enabled, weekly_summary_day, weekly_summary_hour)
+                SELECT $1, name, language, created_at, NOW(),
+                       weekly_summary_enabled, weekly_summary_day, weekly_summary_hour
+                FROM families WHERE id = $2
+                """,
+                new_id, old_id,
+            )
+
+            # 2. Update all child tables to point to the new ID
+            await conn.execute("UPDATE user_profiles SET family_id = $1 WHERE family_id = $2", new_id, old_id)
+            await conn.execute("UPDATE tasks SET family_id = $1 WHERE family_id = $2", new_id, old_id)
+            await conn.execute("UPDATE family_invites SET family_id = $1 WHERE family_id = $2", new_id, old_id)
+            await conn.execute("UPDATE notifications SET family_id = $1 WHERE family_id = $2", new_id, old_id)
+
+            # 3. Delete the old family row (child tables no longer reference it so
+            #    ON DELETE CASCADE has nothing to remove)
+            await conn.execute("DELETE FROM families WHERE id = $1", old_id)
+
+    finally:
+        await conn.close()
+
+    return RenameFamilyIdResponse(new_family_id=new_id)

@@ -171,7 +171,17 @@ const en = {
     sendAt: "Send at",
     notificationsUpdated: "Notification settings updated",
     failedToUpdateNotifications: "Failed to update notification settings",
-    failedToUpdateFamilyLanguage: "Failed to update family language"
+    failedToUpdateFamilyLanguage: "Failed to update family language",
+    renameFamilyId: "Change Family ID",
+    renameFamilyIdDescription: "Give your family a more memorable ID. This is the code children and new members use to join.",
+    currentFamilyId: "Current Family ID",
+    newFamilyId: "New Family ID",
+    newFamilyIdPlaceholder: "e.g. smith-family",
+    newFamilyIdHint: "3–30 chars, lowercase letters, numbers, hyphens and underscores. Must start and end with a letter or number.",
+    renameFamilyIdSuccess: "Family ID changed to {{newId}}",
+    renameFamilyIdTaken: "That family ID is already taken",
+    renameFamilyIdFailed: "Failed to change family ID",
+    renameFamilyIdSame: "That is already your family ID"
   },
   balance: {
     title: "Balance",
@@ -560,7 +570,17 @@ const nb = {
     sendAt: "Send kl.",
     notificationsUpdated: "Varselinnstillinger oppdatert",
     failedToUpdateNotifications: "Kunne ikke oppdatere varselinnstillinger",
-    failedToUpdateFamilyLanguage: "Kunne ikke oppdatere familiespråk"
+    failedToUpdateFamilyLanguage: "Kunne ikke oppdatere familiespråk",
+    renameFamilyId: "Endre familie-ID",
+    renameFamilyIdDescription: "Gi familien en mer minneverdig ID. Dette er koden barn og nye medlemmer bruker for å bli med.",
+    currentFamilyId: "Nåværende familie-ID",
+    newFamilyId: "Ny familie-ID",
+    newFamilyIdPlaceholder: "f.eks. smith-familien",
+    newFamilyIdHint: "3–30 tegn, små bokstaver, tall, bindestreker og understrekingstegn. Må starte og slutte med bokstav eller tall.",
+    renameFamilyIdSuccess: "Familie-ID endret til {{newId}}",
+    renameFamilyIdTaken: "Den familie-IDen er allerede tatt",
+    renameFamilyIdFailed: "Kunne ikke endre familie-ID",
+    renameFamilyIdSame: "Det er allerede din familie-ID"
   },
   balance: {
     title: "Saldo",

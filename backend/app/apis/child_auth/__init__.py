@@ -92,11 +92,12 @@ async def child_sign_in(body: ChildSignInRequest) -> ChildSignInResponse:
         await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS pin_hash VARCHAR")
         await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS child_auth_token VARCHAR")
         await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS username VARCHAR")
+        await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS neon_email VARCHAR")
 
         # Look up by username slug + family_id — no email reconstruction needed.
         row = await conn.fetchrow(
             """
-            SELECT up.user_id, up.pin_hash, up.child_auth_token
+            SELECT up.user_id, up.pin_hash, up.child_auth_token, up.neon_email
             FROM user_profiles up
             WHERE up.username = $1
               AND up.family_id = $2
@@ -113,21 +114,19 @@ async def child_sign_in(body: ChildSignInRequest) -> ChildSignInResponse:
 
         pin_hash: str | None = row["pin_hash"]
         auth_token: str | None = row["child_auth_token"]
-        user_id: str = row["user_id"]
-
-        # Reconstruct the virtual email for the Neon Auth sign-in call.
-        virtual_email = f"{username_slug}.{family_id}@allowanceflow.app"
+        # neon_email is the permanent email registered in Neon Auth.
+        # It never changes even when the family ID is renamed.
+        # Fall back to reconstructing it for legacy accounts that predate this column.
+        neon_email: str = row["neon_email"] or f"{username_slug}.{family_id}@allowanceflow.app"
 
         if not pin_hash or not auth_token:
-            # Backward compat: account was created before the new flow where PIN
-            # was used directly as the Better Auth password.  Pass the PIN through
-            # as the auth_token so the frontend can still complete sign-in.
-            # Wrong PINs will be rejected by Neon Auth itself.
-            return ChildSignInResponse(virtual_email=virtual_email, auth_token=body.pin)
+            # Backward compat: account created before the pin_hash flow; the PIN
+            # was used directly as the Better Auth password.
+            return ChildSignInResponse(virtual_email=neon_email, auth_token=body.pin)
 
         if not _verify_pin(body.pin, pin_hash):
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        return ChildSignInResponse(virtual_email=virtual_email, auth_token=auth_token)
+        return ChildSignInResponse(virtual_email=neon_email, auth_token=auth_token)
     finally:
         await conn.close()

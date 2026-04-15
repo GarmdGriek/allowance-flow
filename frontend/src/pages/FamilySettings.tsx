@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import i18n from "utils/i18n";
 import { PageHeader } from "components/PageHeader";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 
 export default function FamilySettings() {
   const navigate = useNavigate();
@@ -25,6 +26,8 @@ export default function FamilySettings() {
   const [isSavingLanguage, setIsSavingLanguage] = useState(false);
   const [notificationSettings, setNotificationSettings] = useState({ enabled: false, day: 0, hour: 0 });
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
+  const [newFamilyId, setNewFamilyId] = useState("");
+  const [isRenamingFamilyId, setIsRenamingFamilyId] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -77,6 +80,39 @@ export default function FamilySettings() {
       toast.error(t("family.failedToUpdateFamilyLanguage"));
     } finally {
       setIsSavingLanguage(false);
+    }
+  };
+
+  const handleRenameFamilyId = async () => {
+    const trimmed = newFamilyId.trim().toLowerCase();
+    if (!trimmed) return;
+    if (trimmed === profile?.family_id) {
+      toast.info(t("family.renameFamilyIdSame"));
+      return;
+    }
+    setIsRenamingFamilyId(true);
+    try {
+      const response = await apiClient.rename_family_id({ new_family_id: trimmed });
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(t("family.renameFamilyIdSuccess", { newId: data.new_family_id }));
+        // Refresh profile to show the new ID
+        const profileResponse = await apiClient.get_my_profile();
+        const profileData = await profileResponse.json();
+        setProfile(profileData);
+        setNewFamilyId("");
+      } else {
+        const data = await response.json();
+        if (response.status === 409) {
+          toast.error(t("family.renameFamilyIdTaken"));
+        } else {
+          toast.error(data.detail || t("family.renameFamilyIdFailed"));
+        }
+      }
+    } catch {
+      toast.error(t("family.renameFamilyIdFailed"));
+    } finally {
+      setIsRenamingFamilyId(false);
     }
   };
 
@@ -246,6 +282,49 @@ export default function FamilySettings() {
                   className="w-full"
                 >
                   {isSavingLanguage ? t("common.saving") : t("common.saveChanges")}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Rename Family ID */}
+          <div className="max-w-2xl mx-auto mb-8">
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("family.renameFamilyId")}</CardTitle>
+                <CardDescription>
+                  {t("family.renameFamilyIdDescription")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {profile?.family_id && (
+                  <div className="space-y-1">
+                    <Label>{t("family.currentFamilyId")}</Label>
+                    <p className="font-mono text-sm bg-muted rounded px-3 py-2 select-all">
+                      {profile.family_id}
+                    </p>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="newFamilyId">{t("family.newFamilyId")}</Label>
+                  <Input
+                    id="newFamilyId"
+                    value={newFamilyId}
+                    onChange={(e) => setNewFamilyId(e.target.value.toLowerCase())}
+                    placeholder={t("family.newFamilyIdPlaceholder")}
+                    maxLength={30}
+                    pattern="^[a-z0-9][a-z0-9_-]*[a-z0-9]$"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t("family.newFamilyIdHint")}
+                  </p>
+                </div>
+                <Button
+                  onClick={handleRenameFamilyId}
+                  disabled={isRenamingFamilyId || !newFamilyId.trim()}
+                  className="w-full"
+                >
+                  {isRenamingFamilyId ? t("common.saving") : t("family.renameFamilyId")}
                 </Button>
               </CardContent>
             </Card>
