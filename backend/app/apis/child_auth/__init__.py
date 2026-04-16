@@ -108,23 +108,46 @@ async def child_sign_in(body: ChildSignInRequest) -> ChildSignInResponse:
                 # privilege; the SELECT below will tell us if the column is missing.
                 print(f"[child-auth] migration warning ({stmt!r}): {exc}")
 
-        # Look up by username slug + family_id — no email reconstruction needed.
+        # Look up by username slug + family_id.
+        # Try the full query with newer columns first; if any column is missing
+        # (legacy DB where the migration hasn't run yet), fall back to a name-
+        # based lookup using only the original schema columns.
+        row = None
         try:
             row = await conn.fetchrow(
                 """
-                SELECT up.user_id, up.pin_hash, up.child_auth_token, up.neon_email
-                FROM user_profiles up
-                WHERE up.username = $1
-                  AND up.family_id = $2
-                  AND up.role = 'child'
-                  AND up.status = 'active'
+                SELECT user_id, pin_hash, child_auth_token, neon_email
+                FROM user_profiles
+                WHERE username = $1
+                  AND family_id = $2
+                  AND role = 'child'
+                  AND status = 'active'
                 """,
                 username_slug,
                 family_id,
             )
         except Exception as exc:
-            print(f"[child-auth] DB query error: {exc}")
-            raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+            # Column(s) not migrated yet — fall back to name-based lookup.
+            print(f"[child-auth] primary query failed ({exc}), trying legacy fallback")
+            try:
+                row = await conn.fetchrow(
+                    """
+                    SELECT user_id,
+                           NULL::text AS pin_hash,
+                           NULL::text AS child_auth_token,
+                           NULL::text AS neon_email
+                    FROM user_profiles
+                    WHERE LOWER(name) = $1
+                      AND family_id = $2
+                      AND role = 'child'
+                      AND status = 'active'
+                    """,
+                    username_slug,
+                    family_id,
+                )
+            except Exception as exc2:
+                print(f"[child-auth] legacy query also failed: {exc2}")
+                raise HTTPException(status_code=503, detail="Service temporarily unavailable")
 
         if row is None:
             # Generic error — don't reveal whether the account exists.
