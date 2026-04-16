@@ -857,7 +857,7 @@ async def create_child_account(body: CreateChildAccountRequest, user: Authorized
     {slug}.{familyId}@allowanceflow.app so the child can log in with just
     their name and PIN from the simplified child login page.
     """
-    neon_auth_url = os.environ.get("NEON_AUTH_ISSUER", "").rstrip("/")
+    neon_auth_url = os.environ.get("NEON_AUTH_ISSUER", "").strip().rstrip("/")
     if not neon_auth_url:
         raise HTTPException(status_code=500, detail="Auth service not configured")
 
