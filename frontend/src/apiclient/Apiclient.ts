@@ -322,6 +322,8 @@ export class Apiclient<SecurityDataType = unknown> extends HttpClient<SecurityDa
       method: "POST",
       body,
       type: ContentType.Json,
+      secure: false,   // unauthenticated endpoint — skip securityWorker
+      credentials: "omit",  // no cookies needed; avoids credentials CORS preflight
       ...params,
     });
 }

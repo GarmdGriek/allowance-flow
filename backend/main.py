@@ -130,16 +130,28 @@ def create_app() -> FastAPI:
     """Create the app. This is called by uvicorn with the factory option to construct the app object."""
     app = FastAPI()
 
-    # Global exception handler: catches unhandled errors so they return JSON
-    # WITH CORS headers (without this, Starlette's ServerErrorMiddleware returns
-    # a plain 500 before CORS middleware can add the Allow-Origin header).
+    # Global exception handler: catches unhandled errors so they return JSON.
+    #
+    # IMPORTANT: @app.exception_handler(Exception) is registered with
+    # ServerErrorMiddleware, which sits OUTSIDE CORSMiddleware in the stack:
+    #   ServerErrorMiddleware → CORSMiddleware → ExceptionMiddleware → Routes
+    # That means the JSONResponse returned here never passes through
+    # CORSMiddleware, so we must add CORS headers manually.
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         print(f"[error] Unhandled exception on {request.method} {request.url.path}: {exc}")
         traceback.print_exc()
+        # Manually mirror CORS headers so cross-origin callers can read the error.
+        origin = request.headers.get("origin", "")
+        cors_headers: dict[str, str] = {}
+        if origin:
+            cors_headers["access-control-allow-origin"] = origin
+            cors_headers["access-control-allow-credentials"] = "true"
+            cors_headers["vary"] = "Origin"
         return JSONResponse(
             status_code=500,
             content={"detail": "Internal server error", "error": str(exc)},
+            headers=cors_headers,
         )
 
     # CORS — allow frontend origin(s)

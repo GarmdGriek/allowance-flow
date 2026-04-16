@@ -85,28 +85,46 @@ async def child_sign_in(body: ChildSignInRequest) -> ChildSignInResponse:
     username_slug = _normalise_username(body.username)
     family_id = body.family_id.strip()
 
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
     try:
-        # Ensure columns exist — this endpoint may be called before any child
-        # account is created (which is the other place the migration runs).
-        await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS pin_hash VARCHAR")
-        await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS child_auth_token VARCHAR")
-        await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS username VARCHAR")
-        await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS neon_email VARCHAR")
+        conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
+    except Exception as exc:
+        print(f"[child-auth] DB connect error: {exc}")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+
+    try:
+        # Idempotent schema migrations — run only if needed.
+        # Wrapped per-statement so a single failure doesn't abort sign-in when
+        # the column already exists (asyncpg raises if IF NOT EXISTS is missing).
+        for stmt in [
+            "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS pin_hash VARCHAR",
+            "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS child_auth_token VARCHAR",
+            "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS username VARCHAR",
+            "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS neon_email VARCHAR",
+        ]:
+            try:
+                await conn.execute(stmt)
+            except Exception as exc:
+                # Log but continue — column likely already exists or we lack ALTER
+                # privilege; the SELECT below will tell us if the column is missing.
+                print(f"[child-auth] migration warning ({stmt!r}): {exc}")
 
         # Look up by username slug + family_id — no email reconstruction needed.
-        row = await conn.fetchrow(
-            """
-            SELECT up.user_id, up.pin_hash, up.child_auth_token, up.neon_email
-            FROM user_profiles up
-            WHERE up.username = $1
-              AND up.family_id = $2
-              AND up.role = 'child'
-              AND up.status = 'active'
-            """,
-            username_slug,
-            family_id,
-        )
+        try:
+            row = await conn.fetchrow(
+                """
+                SELECT up.user_id, up.pin_hash, up.child_auth_token, up.neon_email
+                FROM user_profiles up
+                WHERE up.username = $1
+                  AND up.family_id = $2
+                  AND up.role = 'child'
+                  AND up.status = 'active'
+                """,
+                username_slug,
+                family_id,
+            )
+        except Exception as exc:
+            print(f"[child-auth] DB query error: {exc}")
+            raise HTTPException(status_code=503, detail="Service temporarily unavailable")
 
         if row is None:
             # Generic error — don't reveal whether the account exists.
