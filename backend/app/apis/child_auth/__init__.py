@@ -92,22 +92,6 @@ async def child_sign_in(body: ChildSignInRequest) -> ChildSignInResponse:
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
 
     try:
-        # Idempotent schema migrations — run only if needed.
-        # Wrapped per-statement so a single failure doesn't abort sign-in when
-        # the column already exists (asyncpg raises if IF NOT EXISTS is missing).
-        for stmt in [
-            "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS pin_hash VARCHAR",
-            "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS child_auth_token VARCHAR",
-            "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS username VARCHAR",
-            "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS neon_email VARCHAR",
-        ]:
-            try:
-                await conn.execute(stmt)
-            except Exception as exc:
-                # Log but continue — column likely already exists or we lack ALTER
-                # privilege; the SELECT below will tell us if the column is missing.
-                print(f"[child-auth] migration warning ({stmt!r}): {exc}")
-
         # Look up by username slug + family_id.
         # Try the full query with newer columns first; if any column is missing
         # (legacy DB where the migration hasn't run yet), fall back to a name-

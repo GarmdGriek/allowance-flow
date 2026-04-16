@@ -876,8 +876,22 @@ async def create_child_account(body: CreateChildAccountRequest, user: Authorized
         family_id: str = profile["family_id"]
         slug = _make_username_slug(body.display_name)
 
-        # Ensure the username column exists before uniqueness check
-        await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS username VARCHAR")
+        # Guard: verify the migration has been applied (columns must exist).
+        # The app DB user cannot ALTER tables — run migrations/001_child_auth_columns.sql
+        # in the Railway / Neon SQL console to add the required columns.
+        cols_exist = await conn.fetchval(
+            """
+            SELECT COUNT(*) = 4
+            FROM information_schema.columns
+            WHERE table_name = 'user_profiles'
+              AND column_name IN ('pin_hash', 'child_auth_token', 'username', 'neon_email')
+            """
+        )
+        if not cols_exist:
+            raise HTTPException(
+                status_code=503,
+                detail="Database migration required: run migrations/001_child_auth_columns.sql in your SQL console",
+            )
 
         # Ensure uniqueness within the family by appending a short random suffix if needed
         base_slug = slug
@@ -902,12 +916,6 @@ async def create_child_account(body: CreateChildAccountRequest, user: Authorized
         # pure DB operation and never requires a Better Auth admin API.
         child_auth_token = secrets.token_urlsafe(32)
         pin_hash = _hash_pin(body.pin)
-
-        # Ensure the new columns exist (idempotent migration).
-        await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS pin_hash VARCHAR")
-        await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS child_auth_token VARCHAR")
-        await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS username VARCHAR")
-        await conn.execute("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS neon_email VARCHAR")
 
         # Create the Neon Auth account using the random token as the password.
         async with httpx.AsyncClient(timeout=10.0) as client:
