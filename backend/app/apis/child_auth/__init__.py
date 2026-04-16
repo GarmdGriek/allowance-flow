@@ -92,10 +92,10 @@ async def child_sign_in(body: ChildSignInRequest) -> ChildSignInResponse:
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
 
     try:
-        # Look up by username slug + family_id.
-        # Try the full query with newer columns first; if any column is missing
-        # (legacy DB where the migration hasn't run yet), fall back to a name-
-        # based lookup using only the original schema columns.
+        # Step 1: look up by stored username slug (fast path for accounts created
+        # with the new code).  If the column throws (pre-migration) or returns
+        # nothing (account created before username was stored), fall through to
+        # the name-based fallback in Step 2.
         row = None
         try:
             row = await conn.fetchrow(
@@ -111,30 +111,46 @@ async def child_sign_in(body: ChildSignInRequest) -> ChildSignInResponse:
                 family_id,
             )
         except Exception as exc:
-            # Column(s) not migrated yet — fall back to name-based lookup.
-            print(f"[child-auth] primary query failed ({exc}), trying legacy fallback")
+            print(f"[child-auth] username lookup error: {exc}")
+
+        # Step 2: if not found by username (NULL username = account predates the
+        # column, or column is missing), fetch all children in the family and
+        # match by normalising the stored display name in Python.  This handles
+        # ØÆÅ correctly regardless of how/when the username column was populated.
+        if row is None:
             try:
-                row = await conn.fetchrow(
+                children = await conn.fetch(
                     """
-                    SELECT user_id,
-                           NULL::text AS pin_hash,
-                           NULL::text AS child_auth_token,
-                           NULL::text AS neon_email
+                    SELECT user_id, name, pin_hash, child_auth_token, neon_email
                     FROM user_profiles
-                    WHERE LOWER(name) = $1
-                      AND family_id = $2
-                      AND role = 'child'
-                      AND status = 'active'
+                    WHERE family_id = $1 AND role = 'child' AND status = 'active'
                     """,
-                    username_slug,
                     family_id,
                 )
-            except Exception as exc2:
-                print(f"[child-auth] legacy query also failed: {exc2}")
-                raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+            except Exception:
+                # Columns don't exist yet (pre-migration) — fetch base schema only.
+                try:
+                    children = await conn.fetch(
+                        """
+                        SELECT user_id, name,
+                               NULL::text AS pin_hash,
+                               NULL::text AS child_auth_token,
+                               NULL::text AS neon_email
+                        FROM user_profiles
+                        WHERE family_id = $1 AND role = 'child' AND status = 'active'
+                        """,
+                        family_id,
+                    )
+                except Exception as exc2:
+                    print(f"[child-auth] fallback query failed: {exc2}")
+                    raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+
+            row = next(
+                (c for c in children if _normalise_username(c["name"] or "") == username_slug),
+                None,
+            )
 
         if row is None:
-            # Generic error — don't reveal whether the account exists.
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         pin_hash: str | None = row["pin_hash"]
