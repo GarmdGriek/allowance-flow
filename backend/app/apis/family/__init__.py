@@ -876,17 +876,6 @@ async def create_child_account(body: CreateChildAccountRequest, user: Authorized
         family_id: str = profile["family_id"]
         slug = _make_username_slug(body.display_name)
 
-        # Guard: verify the migration has been applied (probe column directly).
-        # The app DB user cannot ALTER tables — run migrations/001_child_auth_columns.sql
-        # in the Railway / Neon SQL console to add the required columns.
-        try:
-            await conn.fetchval("SELECT pin_hash FROM user_profiles LIMIT 0")
-        except asyncpg.exceptions.UndefinedColumnError:
-            raise HTTPException(
-                status_code=503,
-                detail="Database migration required: run migrations/001_child_auth_columns.sql in your SQL console",
-            )
-
         # Ensure uniqueness within the family by appending a short random suffix if needed
         base_slug = slug
         attempt = 0
