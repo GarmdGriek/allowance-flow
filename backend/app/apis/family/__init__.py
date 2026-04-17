@@ -13,6 +13,7 @@ import os
 import re
 import secrets
 from typing import List, Optional
+from urllib.parse import urlparse
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
@@ -944,10 +945,16 @@ async def create_child_account(body: CreateChildAccountRequest, user: Authorized
         pin_hash = _hash_pin(body.pin)
 
         # Create the Neon Auth account using the random token as the password.
+        # Better Auth rejects requests without an Origin header unless a fully
+        # qualified callbackURL is supplied, so spoof one using the issuer's
+        # own origin (always a trusted origin for the auth server itself).
+        parsed_issuer = urlparse(neon_auth_url)
+        auth_origin = f"{parsed_issuer.scheme}://{parsed_issuer.netloc}"
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(
                 f"{neon_auth_url}/sign-up/email",
                 json={"email": virtual_email, "password": child_auth_token, "name": body.display_name},
+                headers={"Origin": auth_origin},
             )
             if resp.status_code not in (200, 201):
                 detail = resp.text[:500]
