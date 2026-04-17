@@ -1030,6 +1030,11 @@ async def update_child_pin(child_user_id: str, body: UpdateChildPinRequest, user
         if child_profile["role"] != "child":
             raise HTTPException(status_code=400, detail="User is not a child")
 
+        print(
+            f"[family] update_child_pin: child={child_user_id} "
+            f"new_pin_len={len(body.new_pin)} "
+            f"new_pin_codepoints={[ord(c) for c in body.new_pin]}"
+        )
         new_pin_hash = _hash_pin(body.new_pin)
         result = await conn.execute(
             "UPDATE user_profiles SET pin_hash = $1, updated_at = NOW() WHERE user_id = $2",
