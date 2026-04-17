@@ -51,8 +51,16 @@ def _verify_pin(pin: str, stored_hash: str) -> bool:
         salt = base64.b64decode(salt_b64)
         expected = base64.b64decode(dk_b64)
         dk = hashlib.pbkdf2_hmac("sha256", pin.encode("utf-8"), salt, 200_000)
-        return hashlib.compare_digest(dk, expected)
-    except Exception:
+        ok = hashlib.compare_digest(dk, expected)
+        if not ok:
+            print(
+                f"[child-auth] _verify_pin: bytes mismatch "
+                f"salt_len={len(salt)} expected_len={len(expected)} dk_len={len(dk)} "
+                f"expected_b64={dk_b64!r} computed_b64={base64.b64encode(dk).decode()!r}"
+            )
+        return ok
+    except Exception as exc:
+        print(f"[child-auth] _verify_pin: exception {type(exc).__name__}: {exc}")
         return False
 
 
