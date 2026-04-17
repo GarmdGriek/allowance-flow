@@ -84,6 +84,18 @@ async def child_sign_in(body: ChildSignInRequest) -> ChildSignInResponse:
     """
     username_slug = _normalise_username(body.username)
     family_id = body.family_id.strip()
+    # Defensive: strip anything that isn't a digit. The frontend PIN input
+    # doesn't filter non-digits, so autofill extensions or virtual keyboards
+    # sometimes sneak in whitespace / zero-width chars. Hashing on both sides
+    # must see the same bytes.
+    raw_pin = body.pin
+    pin = re.sub(r"\D", "", raw_pin)
+    if raw_pin != pin:
+        print(
+            f"[child-auth] pin had non-digit chars stripped: "
+            f"len_before={len(raw_pin)} len_after={len(pin)} "
+            f"codepoints={[ord(c) for c in raw_pin]}"
+        )
 
     try:
         conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
@@ -167,12 +179,13 @@ async def child_sign_in(body: ChildSignInRequest) -> ChildSignInResponse:
         if not pin_hash or not auth_token:
             # Backward compat: account created before the pin_hash flow; the PIN
             # was used directly as the Better Auth password.
-            return ChildSignInResponse(virtual_email=neon_email, auth_token=body.pin)
+            return ChildSignInResponse(virtual_email=neon_email, auth_token=pin)
 
-        if not _verify_pin(body.pin, pin_hash):
+        if not _verify_pin(pin, pin_hash):
             print(
                 f"[child-auth] PIN mismatch for username={username_slug!r} "
-                f"family_id={family_id!r} user_id={row['user_id']!r}"
+                f"family_id={family_id!r} user_id={row['user_id']!r} "
+                f"received_len={len(pin)} received_codepoints={[ord(c) for c in pin]}"
             )
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
