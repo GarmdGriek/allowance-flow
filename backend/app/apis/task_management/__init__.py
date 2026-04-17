@@ -160,14 +160,14 @@ async def create_task(body: CreateTaskRequest, user: AuthorizedUser) -> TaskResp
         recurrence_days_list = json.loads(task["recurrence_days"]) if task["recurrence_days"] else None
         
         return TaskResponse(
-            id=task["id"],
+            id=str(task["id"]),
             title=task["title"],
             description=task["description"],
             value=str(task["value"]),
             status=task["status"],
-            created_by=task["created_by"],
-            completed_by=task["completed_by"],
-            assigned_to_user_id=task["assigned_to_user_id"],
+            created_by=str(task["created_by"]) if task["created_by"] is not None else None,
+            completed_by=str(task["completed_by"]) if task["completed_by"] is not None else None,
+            assigned_to_user_id=str(task["assigned_to_user_id"]) if task["assigned_to_user_id"] is not None else None,
             family_id=task["family_id"],
             created_at=task["created_at"].isoformat(),
             updated_at=task["updated_at"].isoformat(),
@@ -176,7 +176,7 @@ async def create_task(body: CreateTaskRequest, user: AuthorizedUser) -> TaskResp
             assigned_to_name=assigned_name,
             is_recurring=task["is_recurring"],
             recurrence_days=recurrence_days_list,
-            parent_task_id=task["parent_task_id"],
+            parent_task_id=str(task["parent_task_id"]) if task["parent_task_id"] is not None else None,
             auto_recreate=task["auto_recreate"]
         )
     finally:
@@ -250,14 +250,14 @@ async def list_tasks(user: AuthorizedUser) -> List[TaskResponse]:
             recurrence_days_list = json.loads(task["recurrence_days"]) if task["recurrence_days"] else None
             
             result.append(TaskResponse(
-                id=task["id"],
+                id=str(task["id"]),
                 title=task["title"],
                 description=task["description"],
                 value=str(task["value"]),
                 status=task["status"],
-                created_by=task["created_by"],
-                completed_by=task["completed_by"],
-                assigned_to_user_id=task["assigned_to_user_id"],
+                created_by=str(task["created_by"]) if task["created_by"] is not None else None,
+                completed_by=str(task["completed_by"]) if task["completed_by"] is not None else None,
+                assigned_to_user_id=str(task["assigned_to_user_id"]) if task["assigned_to_user_id"] is not None else None,
                 family_id=task["family_id"],
                 created_at=task["created_at"].isoformat(),
                 updated_at=task["updated_at"].isoformat(),
@@ -267,7 +267,7 @@ async def list_tasks(user: AuthorizedUser) -> List[TaskResponse]:
                 assigned_to_name=assigned_name,
                 is_recurring=task["is_recurring"],
                 recurrence_days=recurrence_days_list,
-                parent_task_id=task["parent_task_id"]
+                parent_task_id=str(task["parent_task_id"]) if task["parent_task_id"] is not None else None,
             ))
         
         return result
@@ -493,14 +493,14 @@ async def update_task(task_id: str, body: UpdateTaskRequest, user: AuthorizedUse
         recurrence_days_list = json.loads(new_task["recurrence_days"]) if new_task["recurrence_days"] else None
 
         return TaskResponse(
-            id=new_task["id"],
+            id=str(new_task["id"]),
             title=new_task["title"],
             description=new_task["description"],
             value=str(new_task["value"]),
             status=new_task["status"],
-            created_by=new_task["created_by"],
-            completed_by=new_task["completed_by"],
-            assigned_to_user_id=new_task["assigned_to_user_id"],
+            created_by=str(new_task["created_by"]) if new_task["created_by"] is not None else None,
+            completed_by=str(new_task["completed_by"]) if new_task["completed_by"] is not None else None,
+            assigned_to_user_id=str(new_task["assigned_to_user_id"]) if new_task["assigned_to_user_id"] is not None else None,
             family_id=new_task["family_id"],
             created_at=new_task["created_at"].isoformat(),
             updated_at=new_task["updated_at"].isoformat(),
@@ -511,7 +511,7 @@ async def update_task(task_id: str, body: UpdateTaskRequest, user: AuthorizedUse
             assigned_to_name=assigned_name,
             is_recurring=new_task["is_recurring"],
             recurrence_days=recurrence_days_list,
-            parent_task_id=new_task["parent_task_id"],
+            parent_task_id=str(new_task["parent_task_id"]) if new_task["parent_task_id"] is not None else None,
             auto_recreate=new_task["auto_recreate"]
         )
     finally:
