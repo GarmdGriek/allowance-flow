@@ -231,7 +231,10 @@ export const StackHandlerRoutes = () => {
       if (result.error) {
         setError(result.error.message || "Sign in failed.");
       } else {
-        navigate(next, { replace: true });
+        // Full reload (not SPA navigate) so UserGuard's useSession() re-fetches
+        // /get-session from Neon Auth with the freshly-set cookie. Without this,
+        // the in-memory session state lags and UserGuard bounces us back here.
+        window.location.replace(next || "/");
       }
     } catch (err: any) {
       setError(err.message || "Sign in failed");
