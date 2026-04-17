@@ -206,16 +206,24 @@ export const StackHandlerRoutes = () => {
     setError("");
     try {
       // Step 1: verify PIN server-side, get back the internal auth credentials
-      const credsResult = await apiClient.child_sign_in({
-        username: childUsername.trim(),
-        family_id: childFamilyId.trim(),
-        pin: childPin,
-      });
-      if (!credsResult.data) {
-        setError((credsResult.error as any)?.detail || "Sign in failed. Check your username, family ID, and PIN.");
+      // (http-client leaves `.data` null unless `format: "json"` is set, so we
+      // unwrap via `.json()` — same pattern as elsewhere in the app.)
+      let virtual_email: string;
+      let auth_token: string;
+      try {
+        const credsResult = await apiClient.child_sign_in({
+          username: childUsername.trim(),
+          family_id: childFamilyId.trim(),
+          pin: childPin,
+        });
+        const creds = await credsResult.json();
+        virtual_email = creds.virtual_email;
+        auth_token = creds.auth_token;
+      } catch (httpErr: any) {
+        const detail = httpErr?.error?.detail || httpErr?.detail;
+        setError(detail || "Sign in failed. Check your username, family ID, and PIN.");
         return;
       }
-      const { virtual_email, auth_token } = credsResult.data;
 
       // Step 2: sign in to Neon Auth with the returned credentials so the
       // session cookie is set on the correct auth origin
