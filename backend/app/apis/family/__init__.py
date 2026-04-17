@@ -950,7 +950,11 @@ async def create_child_account(body: CreateChildAccountRequest, user: Authorized
                 json={"email": virtual_email, "password": child_auth_token, "name": body.display_name},
             )
             if resp.status_code not in (200, 201):
-                detail = resp.text[:200]
+                detail = resp.text[:500]
+                print(
+                    f"[family] Neon Auth sign-up failed: status={resp.status_code} "
+                    f"url={neon_auth_url}/sign-up/email email={virtual_email} body={detail!r}"
+                )
                 raise HTTPException(status_code=502, detail=f"Failed to create auth account: {detail}")
             auth_data = resp.json()
 
