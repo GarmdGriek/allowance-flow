@@ -210,19 +210,33 @@ async def list_parents(user: AuthorizedUser) -> list[ParentResponse]:
         if not profile:
             raise HTTPException(status_code=404, detail="Profile not found")
         
-        # Get all parents in the family
-        rows = await conn.fetch(
-            """
-            SELECT 
-                up.user_id,
-                COALESCE(up.name, us.name, us.email, up.user_id) as name
-            FROM user_profiles up
-            LEFT JOIN neon_auth.users_sync us ON up.user_id = us.id
-            WHERE up.family_id = $1 AND up.role = 'parent' AND up.status = 'active'
-            ORDER BY up.created_at
-            """,
-            profile["family_id"]
-        )
+        # Get all parents in the family. Prefer neon_auth.users_sync for
+        # display names; fall back gracefully when the sync table is missing.
+        try:
+            rows = await conn.fetch(
+                """
+                SELECT
+                    up.user_id,
+                    COALESCE(up.name, us.name, us.email, up.user_id) as name
+                FROM user_profiles up
+                LEFT JOIN neon_auth.users_sync us ON up.user_id = us.id
+                WHERE up.family_id = $1 AND up.role = 'parent' AND up.status = 'active'
+                ORDER BY up.created_at
+                """,
+                profile["family_id"]
+            )
+        except asyncpg.exceptions.UndefinedTableError:
+            print("[family] neon_auth.users_sync not available; using user_profiles only")
+            rows = await conn.fetch(
+                """
+                SELECT up.user_id,
+                       COALESCE(up.name, up.neon_email, up.user_id) as name
+                FROM user_profiles up
+                WHERE up.family_id = $1 AND up.role = 'parent' AND up.status = 'active'
+                ORDER BY up.created_at
+                """,
+                profile["family_id"]
+            )
         
         return [
             ParentResponse(
@@ -427,17 +441,33 @@ async def list_pending_members(user: AuthorizedUser) -> List[PendingMemberRespon
                 detail="Only parents can view pending members"
             )
         
-        # Get all pending members in the family
-        members = await conn.fetch(
-            """
-            SELECT up.user_id, up.role, up.created_at, u.name, u.email
-            FROM user_profiles up
-            LEFT JOIN neon_auth.users_sync u ON up.user_id = u.id
-            WHERE up.family_id = $1 AND up.status = 'pending'
-            ORDER BY up.created_at DESC
-            """,
-            profile["family_id"]
-        )
+        # Get all pending members in the family. The join against
+        # neon_auth.users_sync is best-effort — if the Neon Auth sync table
+        # isn't provisioned on this database we fall back to the columns we
+        # store directly on user_profiles.
+        try:
+            members = await conn.fetch(
+                """
+                SELECT up.user_id, up.role, up.created_at, u.name, u.email
+                FROM user_profiles up
+                LEFT JOIN neon_auth.users_sync u ON up.user_id = u.id
+                WHERE up.family_id = $1 AND up.status = 'pending'
+                ORDER BY up.created_at DESC
+                """,
+                profile["family_id"]
+            )
+        except asyncpg.exceptions.UndefinedTableError:
+            print("[family] neon_auth.users_sync not available; using user_profiles only")
+            members = await conn.fetch(
+                """
+                SELECT up.user_id, up.role, up.created_at, up.name,
+                       up.neon_email AS email
+                FROM user_profiles up
+                WHERE up.family_id = $1 AND up.status = 'pending'
+                ORDER BY up.created_at DESC
+                """,
+                profile["family_id"]
+            )
         
         return [
             PendingMemberResponse(
