@@ -382,11 +382,14 @@ async def authorize_request(
 
     # Fallback: validate opaque session token via Neon Auth session endpoint
     neon_auth_url = os.environ.get("NEON_AUTH_ISSUER", "")
+    print(f"[auth] neon_auth_url={neon_auth_url!r} token_prefix={token[:8]!r}")
     if neon_auth_url:
         user = await validate_neon_session(token, neon_auth_url)
         if user is not None:
             if audit_log:
                 audit_log(f"User {user.sub} authenticated via Neon Auth session")
             return user
+    else:
+        print("[auth] NEON_AUTH_ISSUER not set, skipping session validation")
 
     return None
