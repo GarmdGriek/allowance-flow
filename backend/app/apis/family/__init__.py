@@ -8,6 +8,7 @@ Handles invite creation, member approval, and family member management.
 import asyncpg
 import base64
 import hashlib
+import hmac
 import httpx
 import os
 import re
@@ -847,7 +848,7 @@ def _verify_pin(pin: str, stored_hash: str) -> bool:
         salt = base64.b64decode(salt_b64)
         expected = base64.b64decode(dk_b64)
         dk = hashlib.pbkdf2_hmac("sha256", pin.encode("utf-8"), salt, 200_000)
-        return hashlib.compare_digest(dk, expected)
+        return hmac.compare_digest(dk, expected)
     except Exception:
         return False
 

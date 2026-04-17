@@ -10,6 +10,7 @@ because the child does not have a JWT yet — they are trying to get one.
 import asyncpg
 import base64
 import hashlib
+import hmac
 import os
 import re
 from fastapi import APIRouter, HTTPException
@@ -51,7 +52,7 @@ def _verify_pin(pin: str, stored_hash: str) -> bool:
         salt = base64.b64decode(salt_b64)
         expected = base64.b64decode(dk_b64)
         dk = hashlib.pbkdf2_hmac("sha256", pin.encode("utf-8"), salt, 200_000)
-        ok = hashlib.compare_digest(dk, expected)
+        ok = hmac.compare_digest(dk, expected)
         if not ok:
             print(
                 f"[child-auth] _verify_pin: bytes mismatch "
