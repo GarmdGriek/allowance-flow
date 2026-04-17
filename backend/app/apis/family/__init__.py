@@ -888,10 +888,16 @@ async def create_child_account(body: CreateChildAccountRequest, user: Authorized
     their name and PIN from the simplified child login page.
     """
     raw_issuer = os.environ.get("NEON_AUTH_ISSUER", "")
-    # Railway's env-var UI has been observed to sneak hidden whitespace (incl.
-    # tabs and newlines) into this value. Strip every whitespace char before
-    # using the URL, and prepend the scheme if it was lost in the cleanup.
-    neon_auth_url = re.sub(r"\s+", "", raw_issuer).rstrip("/")
+    # Railway's env-var UI has been observed to inject hidden whitespace and
+    # users have occasionally pasted values like 'NEON_AUTH_ISSUER=https://...'
+    # or '=https://...' into the value field. Normalise aggressively: strip
+    # whitespace, and if the string contains an 'http(s)://' substring, start
+    # the URL there. Finally, prepend https:// if still missing.
+    cleaned = re.sub(r"\s+", "", raw_issuer)
+    match = re.search(r"https?://", cleaned, flags=re.IGNORECASE)
+    if match:
+        cleaned = cleaned[match.start():]
+    neon_auth_url = cleaned.rstrip("/")
     if neon_auth_url and not neon_auth_url.lower().startswith(("http://", "https://")):
         neon_auth_url = "https://" + neon_auth_url
     if not neon_auth_url:
