@@ -887,9 +887,16 @@ async def create_child_account(body: CreateChildAccountRequest, user: Authorized
     {slug}.{familyId}@allowanceflow.app so the child can log in with just
     their name and PIN from the simplified child login page.
     """
-    neon_auth_url = os.environ.get("NEON_AUTH_ISSUER", "").strip().rstrip("/")
+    raw_issuer = os.environ.get("NEON_AUTH_ISSUER", "")
+    # Railway's env-var UI has been observed to sneak hidden whitespace (incl.
+    # tabs and newlines) into this value. Strip every whitespace char before
+    # using the URL, and prepend the scheme if it was lost in the cleanup.
+    neon_auth_url = re.sub(r"\s+", "", raw_issuer).rstrip("/")
+    if neon_auth_url and not neon_auth_url.lower().startswith(("http://", "https://")):
+        neon_auth_url = "https://" + neon_auth_url
     if not neon_auth_url:
         raise HTTPException(status_code=500, detail="Auth service not configured")
+    print(f"[family] NEON_AUTH_ISSUER resolved to {neon_auth_url!r}")
 
     conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
     try:
