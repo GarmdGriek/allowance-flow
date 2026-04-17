@@ -151,6 +151,10 @@ async def child_sign_in(body: ChildSignInRequest) -> ChildSignInResponse:
             )
 
         if row is None:
+            print(
+                f"[child-auth] no match: username_slug={username_slug!r} "
+                f"family_id={family_id!r}"
+            )
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         pin_hash: str | None = row["pin_hash"]
@@ -166,6 +170,10 @@ async def child_sign_in(body: ChildSignInRequest) -> ChildSignInResponse:
             return ChildSignInResponse(virtual_email=neon_email, auth_token=body.pin)
 
         if not _verify_pin(body.pin, pin_hash):
+            print(
+                f"[child-auth] PIN mismatch for username={username_slug!r} "
+                f"family_id={family_id!r} user_id={row['user_id']!r}"
+            )
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         return ChildSignInResponse(virtual_email=neon_email, auth_token=auth_token)
