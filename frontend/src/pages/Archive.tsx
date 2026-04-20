@@ -99,10 +99,7 @@ export default function Archive() {
 
   const handleMarkPaid = async (taskId: string) => {
     try {
-      await apiClient.update_task(
-        { taskId },
-        { status: 'paid' }
-      );
+      await apiClient.update_task(taskId, { status: 'paid' });
       
       toast.success(t("toasts.taskMarkedPaid"));
       // Refresh data to show updated task

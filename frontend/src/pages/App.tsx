@@ -325,9 +325,7 @@ export default function App() {
       const taskToComplete = tasks.find(t => t.id === taskId);
       const isAutoRecreate = taskToComplete?.auto_recreate || false;
       
-      const response = await apiClient.update_task({
-        taskId,
-      }, {
+      const response = await apiClient.update_task(taskId, {
         status: 'completed'
       });
       
@@ -355,9 +353,7 @@ export default function App() {
 
   const handleMarkPaid = async (taskId: string) => {
     try {
-      await apiClient.update_task({
-        taskId,
-      }, {
+      await apiClient.update_task(taskId, {
         status: 'paid'
       });
       

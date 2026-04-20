@@ -144,7 +144,7 @@ export default function TaskManagement() {
 
     try {
       await apiClient.update_task(
-        { taskId: editingTask.id },
+        editingTask.id,
         {
           description: editForm.description,
           value: parseFloat(editForm.value),

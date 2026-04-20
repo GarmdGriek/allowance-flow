@@ -97,9 +97,7 @@ export function ChildDashboard({ userId, currencySymbol }: Props) {
 
   const handleCompleteTask = async (task: Task) => {
     try {
-      await apiClient.update_task({
-        taskId: task.id,
-      }, {
+      await apiClient.update_task(task.id, {
         status: 'completed'
       });
       
