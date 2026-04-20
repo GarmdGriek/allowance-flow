@@ -115,6 +115,12 @@ export default function ProfileSettings() {
     }
   };
 
+  // Children have no settings to manage — send them back to the dashboard
+  if (!isFetching && profile?.role === "child") {
+    navigate("/", { replace: true });
+    return null;
+  }
+
   if (isFetching) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6">

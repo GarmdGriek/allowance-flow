@@ -237,6 +237,17 @@ async def update_profile(body: CreateProfileRequest, user: AuthorizedUser) -> Pr
     """
     conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
     try:
+        # Children cannot update their own profile (currency, role, family).
+        # Those are managed by parents via the family management endpoints.
+        current = await conn.fetchrow(
+            "SELECT role FROM user_profiles WHERE user_id = $1", user.sub
+        )
+        if current and current["role"] == "child":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Children cannot update their own profile"
+            )
+
         # Update the profile
         profile = await conn.fetchrow(
             """
