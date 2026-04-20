@@ -186,7 +186,7 @@ export default function Archive() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
-      <PageHeader title={t("app.archive") || "Archive"} />
+      <PageHeader title={t("app.archive") || "Archive"} userRole={userRole} />
       
       <div className="max-w-5xl mx-auto p-6">
         <div className="flex items-center justify-between mb-6">

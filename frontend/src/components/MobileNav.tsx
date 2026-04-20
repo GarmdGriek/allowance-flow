@@ -87,21 +87,17 @@ export function MobileNav({ userRole, isPreviewMode, onPreviewClick, onExitPrevi
             </Button>
 
             {/* Parent-specific navigation */}
-            {userRole === "parent" && !isPreviewMode && onPreviewClick && (
+            {userRole === "parent" && !isPreviewMode && (
               <>
                 <Button
                   variant="ghost"
                   className="justify-start"
-                  onClick={handlePreview}
+                  onClick={onPreviewClick ? handlePreview : () => handleNavigate("/?openPreview=1")}
                 >
                   <Eye className="mr-2 h-4 w-4" />
                   {t("app.preview")}
                 </Button>
-              </>
-            )}
-            
-            {userRole === "parent" && !isPreviewMode && (
-              <>
+
                 <Button
                   variant="ghost"
                   className="justify-start"

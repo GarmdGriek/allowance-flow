@@ -6,7 +6,7 @@
 
 import React from "react";
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useUserGuardContext } from "app/auth";
 import { DollarSign, CheckCircle, Clock, XCircle, Plus, User, Settings, Repeat, Eye, Edit2, Check, X, Copy } from "lucide-react";
 import { apiClient } from "app";
@@ -100,6 +100,16 @@ export default function App() {
   
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const { isPreviewMode, previewChildId, previewChildName, enterPreviewMode, exitPreviewMode } = usePreviewStore();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // When navigating here from another page via "Forhåndsvisning" menu item,
+  // auto-open the preview dialog and clear the param from the URL.
+  useEffect(() => {
+    if (searchParams.get("openPreview") === "1") {
+      setShowPreviewDialog(true);
+      setSearchParams(prev => { prev.delete("openPreview"); return prev; }, { replace: true });
+    }
+  }, []);
 
   // Track copied state for copy buttons
   const [copiedAmount, setCopiedAmount] = useState<string | null>(null);
