@@ -121,28 +121,29 @@ export function MobileNav({ userRole, isPreviewMode, onPreviewClick, onExitPrevi
               </Button>
             )}
 
-            <Separator />
-
-            {/* Settings */}
-            <Button
-              variant="ghost"
-              className="justify-start"
-              onClick={() => handleNavigate("/profile-settings")}
-            >
-              <Settings className="mr-2 h-4 w-4" />
-              {t("nav.settings")}
-            </Button>
-
-            {/* Family Settings - only for parents */}
+            {/* Settings + Family — parents only */}
             {userRole === "parent" && (
-              <Button
-                variant="ghost"
-                className="justify-start"
-                onClick={() => handleNavigate("/family-settings")}
-              >
-                <Users className="mr-2 h-4 w-4" />
-                {t("nav.family")}
-              </Button>
+              <>
+                <Separator />
+
+                <Button
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={() => handleNavigate("/profile-settings")}
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  {t("nav.settings")}
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={() => handleNavigate("/family-settings")}
+                >
+                  <Users className="mr-2 h-4 w-4" />
+                  {t("nav.family")}
+                </Button>
+              </>
             )}
 
             {/* Sign Out */}
