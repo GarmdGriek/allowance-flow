@@ -62,9 +62,9 @@ async def list_notifications(user: AuthorizedUser, unread_only: bool = False) ->
         result = []
         for row in rows:
             result.append(NotificationResponse(
-                id=row["id"],
-                user_id=row["user_id"],
-                family_id=row["family_id"],
+                id=str(row["id"]),
+                user_id=str(row["user_id"]),
+                family_id=str(row["family_id"]),
                 title=row["title"],
                 message=row["message"],
                 notification_type=row["notification_type"],

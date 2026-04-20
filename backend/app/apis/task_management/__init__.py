@@ -58,6 +58,7 @@ class TaskResponse(BaseModel):
     created_at: str
     updated_at: str
     completed_at: Optional[str]
+    paid_at: Optional[str] = None
     is_recurring: bool = False
     recurrence_days: Optional[List[int]] = None
     parent_task_id: Optional[str] = None

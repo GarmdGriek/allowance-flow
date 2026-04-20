@@ -243,7 +243,7 @@ async def update_profile(body: CreateProfileRequest, user: AuthorizedUser) -> Pr
             UPDATE user_profiles
             SET role = $1, family_id = $2
             WHERE user_id = $3
-            RETURNING user_id, role, family_id, created_at, updated_at
+            RETURNING user_id, role, family_id, currency, status, created_at, updated_at
             """,
             body.role,
             body.family_id,

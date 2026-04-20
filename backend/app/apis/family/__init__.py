@@ -301,9 +301,9 @@ async def create_invite(body: CreateInviteRequest, user: AuthorizedUser) -> Fami
             role=invite["role"],
             invite_code=invite["invite_code"],
             invited_name=invite["invited_name"],
-            created_by=invite["created_by"],
+            created_by=str(invite["created_by"]) if invite["created_by"] is not None else None,
             created_at=invite["created_at"].isoformat(),
-            used_by=invite["used_by"],
+            used_by=str(invite["used_by"]) if invite["used_by"] is not None else None,
             used_at=invite["used_at"].isoformat() if invite["used_at"] else None,
             revoked=invite["revoked"],
             revoked_at=invite["revoked_at"].isoformat() if invite["revoked_at"] else None
@@ -356,9 +356,9 @@ async def list_invites(user: AuthorizedUser) -> List[FamilyInviteResponse]:
                 role=invite["role"],
                 invite_code=invite["invite_code"],
                 invited_name=invite["invited_name"],
-                created_by=invite["created_by"],
+                created_by=str(invite["created_by"]) if invite["created_by"] is not None else None,
                 created_at=invite["created_at"].isoformat(),
-                used_by=invite["used_by"],
+                used_by=str(invite["used_by"]) if invite["used_by"] is not None else None,
                 used_at=invite["used_at"].isoformat() if invite["used_at"] else None,
                 revoked=invite["revoked"],
                 revoked_at=invite["revoked_at"].isoformat() if invite["revoked_at"] else None
