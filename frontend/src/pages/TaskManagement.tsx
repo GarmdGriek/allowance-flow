@@ -171,7 +171,7 @@ export default function TaskManagement() {
     if (!deletingTask) return;
 
     try {
-      await apiClient.delete_task({ taskId: deletingTask.id });
+      await apiClient.delete_task(deletingTask.id);
       toast.success(t("taskManagement.taskDeletedSuccess"));
       setDeletingTask(null);
       fetchData();
