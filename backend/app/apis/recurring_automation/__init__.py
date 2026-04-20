@@ -78,9 +78,26 @@ async def process_recurring_tasks() -> RecurringTaskProcessResult:
                 print(f"Skipping task '{template['title']}' - not scheduled for today")
                 continue
             
-            # Check if we already created an instance today
-            # Look for tasks created today from this parent
-            existing_instance = await conn.fetchrow(
+            # Skip if any instance is still active (available or in_progress).
+            # The previous occurrence must be completed (or paid) before a new
+            # one is spawned — the task does not need to be paid, just completed.
+            active_instance = await conn.fetchrow(
+                """
+                SELECT id FROM tasks
+                WHERE parent_task_id = $1
+                AND status IN ('available', 'in_progress')
+                """,
+                template["id"]
+            )
+
+            if active_instance:
+                print(f"Skipping '{template['title']}' - previous instance not yet completed")
+                details.append(f"Skipped '{template['title']}' - previous instance still active")
+                continue
+
+            # Idempotency guard: don't create a second instance on the same day
+            # (e.g. if the automation is triggered more than once).
+            today_instance = await conn.fetchrow(
                 """
                 SELECT id FROM tasks
                 WHERE parent_task_id = $1
@@ -89,28 +106,11 @@ async def process_recurring_tasks() -> RecurringTaskProcessResult:
                 template["id"],
                 today_date
             )
-            
-            if existing_instance:
-                print(f"Task instance already exists for '{template['title']}' today")
+
+            if today_instance:
                 details.append(f"Skipped '{template['title']}' - already created today")
                 continue
-            
-            # Archive any old incomplete instances from this template
-            # This prevents buildup of uncompleted recurring tasks
-            archived_count = await conn.execute(
-                """
-                UPDATE tasks
-                SET status = 'archived', updated_at = NOW()
-                WHERE parent_task_id = $1
-                AND status IN ('available', 'in_progress')
-                """,
-                template["id"]
-            )
-            if archived_count and archived_count != "UPDATE 0":
-                archived_num = int(archived_count.split()[-1])
-                print(f"Archived {archived_num} old incomplete instance(s) of '{template['title']}'")
-                details.append(f"Archived {archived_num} old instance(s) of '{template['title']}'")
-            
+
             # Create new task instance from template
             new_task = await conn.fetchrow(
                 """
