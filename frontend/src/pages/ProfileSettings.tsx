@@ -148,7 +148,7 @@ export default function ProfileSettings() {
         userRole={profile.role}
       />
       
-      <div className="max-w-2xl mx-auto p-6">
+      <div className="max-w-2xl mx-auto p-3 md:p-6">
         <div className="space-y-6">
           {/* User Info Card */}
           <Card>

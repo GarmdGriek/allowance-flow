@@ -468,8 +468,8 @@ export default function App() {
         onExitPreview={handleExitPreview}
       />
       
-      <div className="max-w-7xl mx-auto p-6">
-        <main className="container mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto p-3 md:p-6">
+        <main className="w-full py-4 md:py-8">
           {isPreviewMode && previewChild ? (
             // Child Dashboard View (Preview Mode)
             <div className="space-y-6">
@@ -712,19 +712,19 @@ export default function App() {
                           )}
                         </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-4 mb-4">
+                      <div className="grid grid-cols-3 gap-2 mb-4">
                         <div>
-                          <p className="text-sm text-muted-foreground">{t("app.totalEarned")}</p>
-                          <p className="text-2xl font-bold text-foreground">{currencySymbol}{child.earned}</p>
+                          <p className="text-xs text-muted-foreground">{t("app.totalEarned")}</p>
+                          <p className="text-lg md:text-2xl font-bold text-foreground">{currencySymbol}{child.earned}</p>
                         </div>
                         <div>
-                          <p className="text-sm text-muted-foreground">{t("balance.paid")}</p>
-                          <p className="text-2xl font-bold text-green-600 dark:text-green-500">{currencySymbol}{child.paid}</p>
+                          <p className="text-xs text-muted-foreground">{t("balance.paid")}</p>
+                          <p className="text-lg md:text-2xl font-bold text-green-600 dark:text-green-500">{currencySymbol}{child.paid}</p>
                         </div>
                         <div>
-                          <p className="text-sm text-muted-foreground">{t("balance.pending")}</p>
-                          <div className="flex items-center gap-2">
-                            <p className="text-2xl font-bold text-orange-600 dark:text-orange-500">{currencySymbol}{child.pending}</p>
+                          <p className="text-xs text-muted-foreground">{t("balance.pending")}</p>
+                          <div className="flex items-center gap-1">
+                            <p className="text-lg md:text-2xl font-bold text-orange-600 dark:text-orange-500">{currencySymbol}{child.pending}</p>
                             {child.pending > 0 && (
                               <button
                                 onClick={() => handleCopyAmount(child)}
@@ -826,7 +826,7 @@ export default function App() {
                       {isRecurring && (
                         <div className="ml-6 space-y-2">
                           <Label className="text-sm text-muted-foreground">{t("form.repeatOn")}</Label>
-                          <div className="flex gap-2 flex-wrap">
+                          <div className="grid grid-cols-7 gap-1">
                             {WEEKDAYS.map((day) => (
                               <Button
                                 key={day.value}
@@ -834,7 +834,7 @@ export default function App() {
                                 variant={recurrenceDays.includes(day.value) ? "default" : "outline"}
                                 size="sm"
                                 onClick={() => toggleRecurrenceDay(day.value)}
-                                className="w-12"
+                                className="px-0 text-xs"
                               >
                                 {day.label}
                               </Button>
@@ -1144,7 +1144,7 @@ export default function App() {
 
       {/* Preview Mode Dialog */}
       <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
-        <DialogContent>
+        <DialogContent className="w-[95vw] max-w-lg">
           <DialogHeader>
             <DialogTitle>{t("app.previewAsChild")}</DialogTitle>
             <DialogDescription>

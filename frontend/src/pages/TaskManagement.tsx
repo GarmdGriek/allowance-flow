@@ -359,7 +359,7 @@ export default function TaskManagement() {
 
         {/* Edit Dialog */}
         <Dialog open={!!editingTask} onOpenChange={(open) => !open && setEditingTask(null)}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md w-[95vw]">
             <DialogHeader>
               <DialogTitle>{t("taskManagement.editTask")}</DialogTitle>
               <DialogDescription>

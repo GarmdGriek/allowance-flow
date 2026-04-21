@@ -194,7 +194,7 @@ export default function Archive() {
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
       <PageHeader title={t("app.archive") || "Archive"} userRole={userRole} />
       
-      <div className="max-w-5xl mx-auto p-6">
+      <div className="max-w-5xl mx-auto p-3 md:p-6">
         <div className="flex items-center justify-between mb-6">
           <p className="text-muted-foreground">{t("app.weeklyHistory")}</p>
           {userRole === "parent" && (

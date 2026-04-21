@@ -17,8 +17,8 @@ export function PageHeader({
   onExitPreview 
 }: Props) {
   return (
-    <header className="flex items-center justify-between p-4 bg-background border-b">
-      <h1 className="text-2xl font-bold">{title}</h1>
+    <header className="flex items-center justify-between p-3 md:p-4 bg-background border-b">
+      <h1 className="text-lg sm:text-2xl font-bold truncate max-w-[60vw]">{title}</h1>
       <div className="flex items-center gap-2">
         <NotificationBell show={userRole === "parent"} />
         <MobileNav 

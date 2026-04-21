@@ -388,13 +388,14 @@ export default function FamilyManagement({ familyId }: Props) {
                       </Button>
                     </>
                   ) : (
-                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex gap-2">
                       <Button size="sm" variant="ghost" onClick={() => handleStartEditChild(child)}>
-                        <Edit2 className="w-4 h-4 mr-1" />
-                        {t("common.edit")}
+                        <Edit2 className="w-4 h-4 md:mr-1" />
+                        <span className="hidden md:inline">{t("common.edit")}</span>
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => { setChangingPinForId(child.user_id); setNewPin(""); }}>
-                        {t("family.changePin")}
+                        <span className="hidden md:inline">{t("family.changePin")}</span>
+                        <span className="md:hidden">PIN</span>
                       </Button>
                     </div>
                   )}

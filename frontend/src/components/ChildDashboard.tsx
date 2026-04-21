@@ -129,22 +129,22 @@ export function ChildDashboard({ userId, currencySymbol }: Props) {
           <CardTitle className="text-2xl">{t("app.myAllowance")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-orange-50 dark:bg-orange-900/20 p-6 rounded-lg">
-              <p className="text-sm text-muted-foreground mb-2">{t("app.totalEarned")}</p>
-              <p className="text-3xl font-bold text-orange-600 dark:text-orange-500">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-orange-50 dark:bg-orange-900/20 p-3 md:p-6 rounded-lg">
+              <p className="text-xs text-muted-foreground mb-1">{t("app.totalEarned")}</p>
+              <p className="text-xl md:text-3xl font-bold text-orange-600 dark:text-orange-500">
                 {currencySymbol}{childData.total_earned.toFixed(2)}
               </p>
             </div>
-            <div className="bg-green-50 dark:bg-green-900/20 p-6 rounded-lg">
-              <p className="text-sm text-muted-foreground mb-2">{t("balance.paid")}</p>
-              <p className="text-3xl font-bold text-green-600 dark:text-green-500">
+            <div className="bg-green-50 dark:bg-green-900/20 p-3 md:p-6 rounded-lg">
+              <p className="text-xs text-muted-foreground mb-1">{t("balance.paid")}</p>
+              <p className="text-xl md:text-3xl font-bold text-green-600 dark:text-green-500">
                 {currencySymbol}{childData.total_paid.toFixed(2)}
               </p>
             </div>
-            <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-lg">
-              <p className="text-sm text-muted-foreground mb-2">{t("balance.pending")}</p>
-              <p className="text-3xl font-bold text-blue-600 dark:text-blue-500">
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-3 md:p-6 rounded-lg">
+              <p className="text-xs text-muted-foreground mb-1">{t("balance.pending")}</p>
+              <p className="text-xl md:text-3xl font-bold text-blue-600 dark:text-blue-500">
                 {currencySymbol}{childData.pending_amount.toFixed(2)}
               </p>
             </div>
@@ -201,8 +201,8 @@ export function ChildDashboard({ userId, currencySymbol }: Props) {
                   <p className="text-muted-foreground text-center py-8">{t("child.noAvailableTasks")}</p>
                 ) : (
                   availableTasks.map((task) => (
-                    <div key={task.id} className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 flex justify-between items-center">
-                      <div>
+                    <div key={task.id} className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 flex flex-wrap justify-between items-start gap-3">
+                      <div className="flex-1 min-w-0">
                         <h4 className="font-semibold text-foreground">{task.title}</h4>
                         {task.description && (
                           <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
@@ -214,7 +214,7 @@ export function ChildDashboard({ userId, currencySymbol }: Props) {
                       <Button
                         size="sm"
                         onClick={() => handleCompleteTask(task)}
-                        className="bg-green-600 hover:bg-green-700"
+                        className="bg-green-600 hover:bg-green-700 shrink-0"
                       >
                         <CheckCircle className="w-4 h-4 mr-2" />
                         {t("child.markComplete")}
