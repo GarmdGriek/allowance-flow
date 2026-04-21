@@ -1032,23 +1032,9 @@ async def update_child_pin(child_user_id: str, body: UpdateChildPinRequest, user
             raise HTTPException(status_code=400, detail="User is not a child")
 
         new_pin_hash = _hash_pin(body.new_pin)
-        print(
-            f"[family] update_child_pin: child={child_user_id} "
-            f"new_pin_len={len(body.new_pin)} "
-            f"new_pin_codepoints={[ord(c) for c in body.new_pin]} "
-            f"hash_len={len(new_pin_hash)} hash_prefix={new_pin_hash[:24]!r}"
-        )
         result = await conn.execute(
             "UPDATE user_profiles SET pin_hash = $1, updated_at = NOW() WHERE user_id = $2",
             new_pin_hash, child_user_id,
-        )
-        print(f"[family] update_child_pin: UPDATE result={result!r}")
-        readback = await conn.fetchval(
-            "SELECT pin_hash FROM user_profiles WHERE user_id = $1", child_user_id,
-        )
-        print(
-            f"[family] update_child_pin: readback hash_len={len(readback) if readback else 0} "
-            f"hash_prefix={(readback or '')[:24]!r} matches_written={readback == new_pin_hash}"
         )
         if result == "UPDATE 0":
             raise HTTPException(status_code=404, detail="Child profile not found")
