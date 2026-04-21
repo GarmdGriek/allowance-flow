@@ -5583,7 +5583,7 @@ __metadata:
     class-variance-authority: "npm:^0.7.0"
     clsx: "npm:^2.1.1"
     cmdk: "npm:1.0.0"
-    date-fns: "npm:*"
+    date-fns: "npm:4.1.0"
     dotenv: "npm:16.4.5"
     embla-carousel-react: "npm:^8.2.1"
     eslint: "npm:8.45.0"
@@ -5593,8 +5593,8 @@ __metadata:
     estree-walker: "npm:3.0.3"
     firebase: "npm:10.8.0"
     framer-motion: "npm:10.18.0"
-    i18next: "npm:*"
-    i18next-browser-languagedetector: "npm:*"
+    i18next: "npm:26.0.4"
+    i18next-browser-languagedetector: "npm:8.2.1"
     input-otp: "npm:^1.2.4"
     knip: "npm:5.72.0"
     lodash: "npm:4.17.21"
@@ -5614,7 +5614,7 @@ __metadata:
     react-firebaseui: "npm:6.0.0"
     react-helmet: "npm:6.1.0"
     react-hook-form: "npm:^7.53.0"
-    react-i18next: "npm:*"
+    react-i18next: "npm:17.0.2"
     react-resizable-panels: "npm:^2.1.2"
     react-router: "npm:6.17.0"
     react-router-dom: "npm:6.17.0"
@@ -6547,7 +6547,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"date-fns@npm:*":
+"date-fns@npm:4.1.0":
   version: 4.1.0
   resolution: "date-fns@npm:4.1.0"
   checksum: b79ff32830e6b7faa009590af6ae0fb8c3fd9ffad46d930548fbb5acf473773b4712ae887e156ba91a7b3dc30591ce0f517d69fd83bd9c38650fdc03b4e0bac8
@@ -8117,7 +8117,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"i18next-browser-languagedetector@npm:*":
+"i18next-browser-languagedetector@npm:8.2.1":
   version: 8.2.1
   resolution: "i18next-browser-languagedetector@npm:8.2.1"
   dependencies:
@@ -8126,7 +8126,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"i18next@npm:*":
+"i18next@npm:26.0.4":
   version: 26.0.4
   resolution: "i18next@npm:26.0.4"
   dependencies:
@@ -9991,7 +9991,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-i18next@npm:*":
+"react-i18next@npm:17.0.2":
   version: 17.0.2
   resolution: "react-i18next@npm:17.0.2"
   dependencies:
