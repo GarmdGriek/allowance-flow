@@ -8,7 +8,8 @@ import React from "react";
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useUserGuardContext } from "app/auth";
-import { DollarSign, CheckCircle, Clock, XCircle, Plus, User, Settings, Repeat, Eye, Edit2, Check, X, Copy } from "lucide-react";
+import { DollarSign, CheckCircle, Clock, XCircle, Plus, User, Settings, Repeat, Eye, Edit2, Check, X, Copy, QrCode } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { apiClient } from "app";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -114,6 +115,8 @@ export default function App() {
   // Track copied state for copy buttons
   const [copiedAmount, setCopiedAmount] = useState<string | null>(null);
   const [copiedPhone, setCopiedPhone] = useState<string | null>(null);
+  const [qrChild, setQrChild] = useState<Child | null>(null);
+  const [copiedQrPhone, setCopiedQrPhone] = useState(false);
 
   const WEEKDAYS = [
     { value: 0, label: t("weekdays.sun") },
@@ -684,11 +687,20 @@ export default function App() {
                           <h3 className="text-xl font-semibold text-foreground">{child.name}</h3>
                           {child.phone_number && (
                             <div className="flex items-center gap-2 mt-1">
-                              <p className="text-xs text-muted-foreground">📱 {child.phone_number}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {child.phone_number.replace(/(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4')}
+                              </p>
+                              <button
+                                onClick={() => setQrChild(child)}
+                                className="text-muted-foreground hover:text-foreground transition-colors"
+                                title={t("toasts.showVippsQr")}
+                              >
+                                <QrCode className="w-3.5 h-3.5" />
+                              </button>
                               <button
                                 onClick={() => handleCopyPhone(child)}
                                 className="text-muted-foreground hover:text-foreground transition-colors"
-                                title={t("toasts.phoneNumberCopied")}
+                                title={t("toasts.copyVippsNumber")}
                               >
                                 {copiedPhone === child.id ? (
                                   <Check className="w-3 h-3 text-green-600" />
@@ -1167,6 +1179,48 @@ export default function App() {
               ))
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Vipps QR Dialog */}
+      <Dialog open={qrChild !== null} onOpenChange={() => { setQrChild(null); setCopiedQrPhone(false); }}>
+        <DialogContent className="max-w-xs w-full mx-auto">
+          <DialogHeader>
+            <DialogTitle>{qrChild?.name} – Vipps</DialogTitle>
+          </DialogHeader>
+          {qrChild?.phone_number && (
+            <div className="flex flex-col items-center gap-4 py-2">
+              <div className="p-4 bg-white rounded-xl border">
+                <QRCodeSVG
+                  value={`https://qr.vipps.no/28/2/01/031/47${qrChild.phone_number.replace(/\s/g, '')}`}
+                  size={200}
+                  bgColor="#ffffff"
+                  fgColor="#ff5b24"
+                  level="M"
+                />
+              </div>
+              <p className="text-sm text-muted-foreground text-center">{t("toasts.vippsQrHint")}</p>
+              <p className="text-2xl font-mono tracking-widest">
+                {qrChild.phone_number.replace(/(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4')}
+              </p>
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={() => {
+                  navigator.clipboard.writeText(qrChild.phone_number!.replace(/\s/g, '')).then(() => {
+                    setCopiedQrPhone(true);
+                    setTimeout(() => setCopiedQrPhone(false), 2000);
+                  });
+                }}
+              >
+                {copiedQrPhone ? (
+                  <><Check className="w-4 h-4 mr-2 text-green-600" />{t("toasts.phoneNumberCopied")}</>
+                ) : (
+                  <><Copy className="w-4 h-4 mr-2" />{t("toasts.copyVippsNumber")}</>
+                )}
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

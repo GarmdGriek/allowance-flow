@@ -5,7 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Input } from "@/components/ui/input";
-import { Copy, Check, Trash2, UserCheck, UserX, Edit2, User } from "lucide-react";
+import { Copy, Check, Trash2, UserCheck, UserX, Edit2, User, QrCode } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { QRCodeSVG } from "qrcode.react";
 import { apiClient, APP_BASE_PATH } from "app";
 import { toast } from "sonner";
 import type { FamilyInviteResponse, PendingMemberResponse, ChildResponse } from "types";
@@ -42,6 +44,17 @@ export default function FamilyManagement({ familyId }: Props) {
   // PIN change
   const [changingPinForId, setChangingPinForId] = useState<string | null>(null);
   const [newPin, setNewPin] = useState("");
+
+  // Vipps QR dialog
+  const [qrChild, setQrChild] = useState<{ name: string; phone: string } | null>(null);
+  const [copiedQrPhone, setCopiedQrPhone] = useState(false);
+
+  const handleCopyQrPhone = (phone: string) => {
+    navigator.clipboard.writeText(phone).then(() => {
+      setCopiedQrPhone(true);
+      setTimeout(() => setCopiedQrPhone(false), 2000);
+    });
+  };
 
   // Load invites and pending members
   const loadData = async () => {
@@ -331,9 +344,18 @@ export default function FamilyManagement({ familyId }: Props) {
                     <div className="flex-1">
                       <p className="font-semibold">{child.name}</p>
                       {child.phone_number && (
-                        <p className="text-xs text-muted-foreground">
-                          📱 {child.phone_number.replace(/(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4')}
-                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-xs text-muted-foreground">
+                            {child.phone_number.replace(/(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4')}
+                          </p>
+                          <button
+                            onClick={() => setQrChild({ name: child.name, phone: child.phone_number!.replace(/\s/g, '') })}
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                            title={t("toasts.showVippsQr")}
+                          >
+                            <QrCode className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       )}
                       <div className="flex gap-2 mt-1">
                         <Badge variant="outline" className="text-xs">
@@ -560,6 +582,43 @@ export default function FamilyManagement({ familyId }: Props) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Vipps QR Dialog */}
+      <Dialog open={qrChild !== null} onOpenChange={() => setQrChild(null)}>
+        <DialogContent className="max-w-xs w-full mx-auto">
+          <DialogHeader>
+            <DialogTitle>{qrChild?.name} – Vipps</DialogTitle>
+          </DialogHeader>
+          {qrChild && (
+            <div className="flex flex-col items-center gap-4 py-2">
+              <div className="p-4 bg-white rounded-xl border">
+                <QRCodeSVG
+                  value={`https://qr.vipps.no/28/2/01/031/47${qrChild.phone}`}
+                  size={200}
+                  bgColor="#ffffff"
+                  fgColor="#ff5b24"
+                  level="M"
+                />
+              </div>
+              <p className="text-sm text-muted-foreground text-center">{t("toasts.vippsQrHint")}</p>
+              <p className="text-2xl font-mono tracking-widest">
+                {qrChild.phone.replace(/(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4')}
+              </p>
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={() => handleCopyQrPhone(qrChild.phone)}
+              >
+                {copiedQrPhone ? (
+                  <><Check className="w-4 h-4 mr-2 text-green-600" />{t("toasts.phoneNumberCopied")}</>
+                ) : (
+                  <><Copy className="w-4 h-4 mr-2" />{t("toasts.copyVippsNumber")}</>
+                )}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

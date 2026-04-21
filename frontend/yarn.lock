@@ -5604,6 +5604,7 @@ __metadata:
     node-fetch-h2: "npm:^2.3.1-0"
     openapi-types: "npm:12.1.3"
     postcss: "npm:^8.4.45"
+    qrcode.react: "npm:3.1.0"
     raw-body: "npm:2.5.2"
     react: "npm:18.3.1"
     react-day-picker: "npm:8.10.1"
@@ -9840,6 +9841,15 @@ __metadata:
   version: 2.3.1
   resolution: "punycode@npm:2.3.1"
   checksum: 14f76a8206bc3464f794fb2e3d3cc665ae416c01893ad7a02b23766eb07159144ee612ad67af5e84fa4479ccfe67678c4feb126b0485651b302babf66f04f9e9
+  languageName: node
+  linkType: hard
+
+"qrcode.react@npm:3.1.0":
+  version: 3.1.0
+  resolution: "qrcode.react@npm:3.1.0"
+  peerDependencies:
+    react: ^16.8.0 || ^17.0.0 || ^18.0.0
+  checksum: af183e99ecaad90f7ef14bd027510ae7866935693c53ccf81b172438abbbf7f29c283c5dc7c2141b420d2413960b8f8dca8d9949646475afe669ed638e8fb722
   languageName: node
   linkType: hard
 
