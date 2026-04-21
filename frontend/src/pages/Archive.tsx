@@ -62,6 +62,12 @@ export default function Archive() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
+      // Fetch profile first so userRole is set before any other call can throw
+      const profileResponse = await apiClient.get_my_profile();
+      const profile = await profileResponse.json();
+      setCurrency(profile.currency || "kr");
+      setUserRole(profile.role || "parent");
+
       // Fetch all tasks
       const tasksResponse = await apiClient.list_tasks();
       const allTasks: Task[] = await tasksResponse.json();
@@ -72,23 +78,23 @@ export default function Archive() {
         // Check if task has been completed or paid more than 7 days ago
         const completedDate = task.completed_at ? parseISO(task.completed_at) : null;
         const paidDate = task.paid_at ? parseISO(task.paid_at) : null;
-        
+
         const relevantDate = paidDate || completedDate;
         return relevantDate && !isAfter(relevantDate, sevenDaysAgo);
       });
 
       setTasks(archivedTasks);
 
-      // Fetch children
-      const childrenResponse = await apiClient.list_children();
-      const childrenData: Child[] = await childrenResponse.json();
-      setChildren(childrenData);
-
-      // Get currency from profile
-      const profileResponse = await apiClient.get_my_profile();
-      const profile = await profileResponse.json();
-      setCurrency(profile.currency || "kr");
-      setUserRole(profile.role || "parent");
+      // Fetch children (parents only — silently ignore failures for child accounts)
+      if (profile.role === "parent") {
+        try {
+          const childrenResponse = await apiClient.list_children();
+          const childrenData: Child[] = await childrenResponse.json();
+          setChildren(childrenData);
+        } catch {
+          // not critical
+        }
+      }
     } catch (error) {
       console.error("Error fetching archive data:", error);
       toast.error(t("errors.generic"));
@@ -191,21 +197,23 @@ export default function Archive() {
       <div className="max-w-5xl mx-auto p-6">
         <div className="flex items-center justify-between mb-6">
           <p className="text-muted-foreground">{t("app.weeklyHistory")}</p>
-          <div className="w-64">
-            <Select value={selectedChild} onValueChange={setSelectedChild}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t("app.allChildren")}</SelectItem>
-                {children.map(child => (
-                  <SelectItem key={child.user_id} value={child.user_id}>
-                    {child.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {userRole === "parent" && (
+            <div className="w-64">
+              <Select value={selectedChild} onValueChange={setSelectedChild}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("app.allChildren")}</SelectItem>
+                  {children.map(child => (
+                    <SelectItem key={child.user_id} value={child.user_id}>
+                      {child.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         {weekData.length === 0 ? (

@@ -176,7 +176,7 @@ async def child_sign_in(body: ChildSignInRequest) -> ChildSignInResponse:
         # neon_email is the permanent email registered in Neon Auth.
         # It never changes even when the family ID is renamed.
         # Fall back to reconstructing it for legacy accounts that predate this column.
-        neon_email: str = row["neon_email"] or f"{username_slug}.{family_id}@allowanceflow.app"
+        neon_email: str = row["neon_email"] or f"{username_slug}.{family_id}@child.local"
 
         if not pin_hash or not auth_token:
             # Backward compat: account created before the pin_hash flow; the PIN

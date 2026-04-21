@@ -243,7 +243,7 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     devx = app_state.devx
 
     app = FastAPI(
-        title="Databutton generated API",
+        title="Allowance App API",
         version="0.0.1",
         servers=[
             {
