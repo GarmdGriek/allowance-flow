@@ -97,7 +97,7 @@ class ChildAccountResponse(BaseModel):
     """Response after creating a child account, includes login credentials."""
     user_id: str
     display_name: str
-    username: str        # The part before @child.local — shown to the child
+    username: str        # The part before @ — shown to the child
     virtual_email: str   # Full virtual email used internally
     family_id: str
     currency: str
@@ -886,7 +886,7 @@ async def create_child_account(body: CreateChildAccountRequest, user: Authorized
     """Parent creates a child account directly using a display name + PIN.
 
     No real email address needed. A virtual email is generated in the form
-    {slug}.{familyId}@child.local so the child can log in with just
+    {slug}@{familyId}.local so the child can log in with just
     their name and PIN from the simplified child login page.
     """
     raw_issuer = os.environ.get("NEON_AUTH_ISSUER", "")
@@ -937,7 +937,7 @@ async def create_child_account(body: CreateChildAccountRequest, user: Authorized
             if attempt > 10:
                 raise HTTPException(status_code=409, detail="Could not generate unique username")
 
-        virtual_email = f"{slug}.{family_id}@child.local"
+        virtual_email = f"{slug}@{family_id}.local"
 
         # Generate a random internal auth token (used as the Better Auth password).
         # The PIN is stored separately as a hash — this way changing the PIN is a
