@@ -52,14 +52,15 @@ async def process_recurring_tasks() -> RecurringTaskProcessResult:
         
         print(f"Processing recurring tasks for day {day_number} ({now.strftime('%A')}) on {today_date}")
         
-        # Find all recurring task templates
+        # Find all recurring task templates (exclude instances which have parent_task_id set)
         recurring_tasks = await conn.fetch(
             """
-            SELECT id, title, description, value, created_by, assigned_to_user_id, 
+            SELECT id, title, description, value, created_by, assigned_to_user_id,
                    family_id, recurrence_days
             FROM tasks
             WHERE is_recurring = TRUE
             AND recurrence_days IS NOT NULL
+            AND parent_task_id IS NULL
             """
         )
         
@@ -71,7 +72,9 @@ async def process_recurring_tasks() -> RecurringTaskProcessResult:
         
         for template in recurring_tasks:
             tasks_processed += 1
-            recurrence_days = json.loads(template["recurrence_days"])
+            raw_days = template["recurrence_days"]
+            # asyncpg may return JSONB as a Python list already, or as a string
+            recurrence_days = raw_days if isinstance(raw_days, list) else json.loads(raw_days)
             
             # Check if today is a recurrence day
             if day_number not in recurrence_days:

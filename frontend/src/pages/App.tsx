@@ -242,6 +242,11 @@ export default function App() {
   useEffect(() => {
     if (profile && userRole === "parent") {
       fetchFamilyData();
+      // Silently trigger recurring task automation so templates spawn today's instances.
+      // The endpoint is idempotent — running it multiple times per day is safe.
+      apiClient.process_recurring_tasks().catch((err) =>
+        console.warn("Recurring task automation skipped:", err)
+      );
     }
   }, [profile, userRole]);
 
