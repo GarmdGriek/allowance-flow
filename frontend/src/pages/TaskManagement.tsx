@@ -67,9 +67,10 @@ export default function TaskManagement() {
   
   // Edit dialog state
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [editForm, setEditForm] = useState({ 
-    title: "", 
-    value: "", 
+  const [editForm, setEditForm] = useState({
+    title: "",
+    description: "",
+    value: "",
     assigned_to_user_id: "",
     is_recurring: false,
     recurrence_days: [] as number[]
@@ -132,6 +133,7 @@ export default function TaskManagement() {
     setEditingTask(task);
     setEditForm({
       title: task.title,
+      description: task.description || "",
       value: task.value,
       assigned_to_user_id: task.assigned_to_user_id || "",
       is_recurring: task.is_recurring,
@@ -146,9 +148,11 @@ export default function TaskManagement() {
       await apiClient.update_task(
         editingTask.id,
         {
-          description: editForm.description,
+          description: editForm.description || null,
           value: parseFloat(editForm.value),
-          assigned_to_user_id: editForm.assigned_to_user_id || null,
+          assigned_to_user_id: (editForm.assigned_to_user_id && editForm.assigned_to_user_id !== "unassigned")
+            ? editForm.assigned_to_user_id
+            : null,
           is_recurring: editForm.is_recurring,
           recurrence_days: editForm.is_recurring ? editForm.recurrence_days : null,
         }
