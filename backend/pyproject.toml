@@ -18,7 +18,7 @@ base = [
   "pyjwt>=2.10.1",
   "cryptography>=44.0.0",
   "asyncpg>=0.30.0",
-  "dotenv>=0.9.9",
+  "python-dotenv>=0.9.9",
 ]
 dev = ["asyncpg-stubs>=0.30.2", "pytest>=8.4.2"]
 app = ["openai", "beautifulsoup4", "requests", "httpx"]
