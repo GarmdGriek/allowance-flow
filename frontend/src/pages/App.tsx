@@ -213,10 +213,24 @@ export default function App() {
 
       try {
         const response = await apiClient.get_my_profile();
+
+        if (response.status === 404) {
+          // Genuinely no profile — send to setup
+          navigate("/setup-profile");
+          return;
+        }
+
+        if (!response.ok) {
+          // Backend error or network issue — don't redirect, just stop the spinner
+          console.error("Error checking profile:", response.status);
+          setIsCheckingProfile(false);
+          return;
+        }
+
         const profileData = await response.json();
 
         if (!profileData) {
-          // No profile found, redirect to setup
+          // Empty body — treat same as 404
           navigate("/setup-profile");
         } else {
           // Profile exists, store it and update UI
@@ -226,10 +240,9 @@ export default function App() {
           setIsCheckingProfile(false);
         }
       } catch (error) {
+        // Network/fetch error — do NOT redirect to setup, just stop the spinner
         console.error("Error checking profile:", error);
-        // If error, stop checking and redirect to setup
         setIsCheckingProfile(false);
-        navigate("/setup-profile");
       }
     };
 
