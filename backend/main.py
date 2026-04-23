@@ -2,20 +2,20 @@ import os
 import pathlib
 import json
 import traceback
-import dotenv
+from dotenv import load_dotenv
 from fastapi import FastAPI, APIRouter, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 # Load environment files
 # First load shared .env file
-dotenv.load_dotenv(".env")
+load_dotenv(".env")
 
 # Then load environment-specific file (defaults to dev)
 # Environment-specific values will override shared values
 environment = os.getenv("ENV", "dev")
 env_file = f".env.{environment}"
-dotenv.load_dotenv(env_file, override=True)
+load_dotenv(env_file, override=True)
 
 print(f"Loaded environment: {environment}")
 
