@@ -2,20 +2,20 @@ import os
 import pathlib
 import json
 import traceback
-from dotenv import load_dotenv
 from fastapi import FastAPI, APIRouter, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-# Load environment files
-# First load shared .env file
-load_dotenv(".env")
-
-# Then load environment-specific file (defaults to dev)
-# Environment-specific values will override shared values
-environment = os.getenv("ENV", "dev")
-env_file = f".env.{environment}"
-load_dotenv(env_file, override=True)
+# Load .env files for local development.
+# On Railway, env vars are injected directly so python-dotenv is optional.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(".env")
+    environment = os.getenv("ENV", "dev")
+    env_file = f".env.{environment}"
+    load_dotenv(env_file, override=True)
+except ImportError:
+    pass
 
 print(f"Loaded environment: {environment}")
 
