@@ -278,9 +278,10 @@ export default function App() {
   // Recovery banner: real-email user stuck with child role
   // Virtual child emails end in .local — if it's a normal email the account
   // was probably a parent whose role got corrupted during a backend outage.
-  // Only show recovery banner if we have a real (non-.local) email address.
-  // If email is null/undefined the account is a PIN-only child account — no recovery needed.
-  const showParentRecovery = profile?.role === "child" && !!profile?.email && !profile.email.endsWith(".local");
+  // Only show recovery banner if we have a real (non-child) email address.
+  // Child accounts use .local or the legacy @allowanceflow.app domain.
+  const isChildEmail = (email: string) => email.endsWith(".local") || email.endsWith("@allowanceflow.app");
+  const showParentRecovery = profile?.role === "child" && !!profile?.email && !isChildEmail(profile.email);
 
   const handleReclaimParent = async () => {
     try {
