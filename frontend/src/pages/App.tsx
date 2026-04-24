@@ -278,8 +278,9 @@ export default function App() {
   // Recovery banner: real-email user stuck with child role
   // Virtual child emails end in .local — if it's a normal email the account
   // was probably a parent whose role got corrupted during a backend outage.
-  const isVirtualChildEmail = profile?.email?.endsWith(".local") ?? false;
-  const showParentRecovery = profile?.role === "child" && !isVirtualChildEmail;
+  // Only show recovery banner if we have a real (non-.local) email address.
+  // If email is null/undefined the account is a PIN-only child account — no recovery needed.
+  const showParentRecovery = profile?.role === "child" && !!profile?.email && !profile.email.endsWith(".local");
 
   const handleReclaimParent = async () => {
     try {

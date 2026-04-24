@@ -362,6 +362,11 @@ const en = {
     paid: "Paid",
     completedOn: "Completed:"
   },
+  recovery: {
+    wrongRoleTitle: "Account role looks wrong",
+    wrongRoleDescription: "Your account has a real email address but is marked as a child. If you are the parent, tap the button to restore your access.",
+    restoreParentAccess: "Restore parent access"
+  },
   taskManagement: {
     title: "Task Management",
     subtitle: "Edit, delete, and configure recurring tasks",
@@ -766,6 +771,11 @@ const nb = {
     waitingApproval: "Venter på godkjenning",
     paid: "Betalt",
     completedOn: "Fullført:"
+  },
+  recovery: {
+    wrongRoleTitle: "Kontorollen ser feil ut",
+    wrongRoleDescription: "Kontoen din har en ekte e-postadresse, men er merket som barn. Hvis du er forelderen, trykk på knappen for å gjenopprette tilgangen din.",
+    restoreParentAccess: "Gjenopprett foreldretilgang"
   },
   taskManagement: {
     title: "Oppgavebehandling",
