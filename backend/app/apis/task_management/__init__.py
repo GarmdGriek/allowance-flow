@@ -7,6 +7,7 @@ This API provides CRUD operations for household tasks.
 All endpoints require parent role authentication.
 """
 
+import asyncpg
 from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, status
