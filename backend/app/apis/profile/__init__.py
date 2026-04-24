@@ -3,13 +3,12 @@
 Handles profile creation and retrieval for the onboarding flow.
 """
 
-import asyncpg
-import os
 from typing import Optional
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.auth import AuthorizedUser
+from app.db import get_pool
 from app.libs.models import UserRole
 
 router = APIRouter(prefix="/profile", tags=["profile"])
@@ -55,8 +54,7 @@ class ProfileResponse(BaseModel):
 @router.get("/me")
 async def get_my_profile(user: AuthorizedUser) -> ProfileResponse:
     """Get the current user's profile"""
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         row = await conn.fetchrow(
             """
             SELECT user_id, role, family_id, currency, status, created_at, updated_at
@@ -65,7 +63,7 @@ async def get_my_profile(user: AuthorizedUser) -> ProfileResponse:
             """,
             user.sub
         )
-        
+
         if not row:
             raise HTTPException(status_code=404, detail="Profile not found")
 
@@ -89,8 +87,6 @@ async def get_my_profile(user: AuthorizedUser) -> ProfileResponse:
             name=(user_info["name"] if user_info else None) or user.name,
             email=(user_info["email"] if user_info else None) or user.email,
         )
-    finally:
-        await conn.close()
 
 
 @router.post("/setup", response_model=ProfileResponse, status_code=status.HTTP_201_CREATED)
@@ -104,8 +100,7 @@ async def setup_profile(body: CreateProfileRequest, user: AuthorizedUser) -> Pro
     1. With invite code: Auto-approve with role from invite
     2. Without invite code: Create pending profile, parent must approve
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Check if profile already exists
         existing_profile = await conn.fetchrow(
             "SELECT user_id FROM user_profiles WHERE user_id = $1",
@@ -237,8 +232,6 @@ async def setup_profile(body: CreateProfileRequest, user: AuthorizedUser) -> Pro
             name=(user_info["name"] if user_info else None) or user.name,
             email=(user_info["email"] if user_info else None) or user.email,
         )
-    finally:
-        await conn.close()
 
 
 @router.post("/reclaim-parent", response_model=ProfileResponse)
@@ -250,8 +243,7 @@ async def reclaim_parent(user: AuthorizedUser) -> ProfileResponse:
     This prevents a child from escalating privileges in a family that already
     has a healthy parent account.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         profile = await conn.fetchrow(
             "SELECT user_id, role, family_id, currency, status FROM user_profiles WHERE user_id = $1",
             user.sub,
@@ -306,18 +298,15 @@ async def reclaim_parent(user: AuthorizedUser) -> ProfileResponse:
             name=(user_info["name"] if user_info else None) or user.name,
             email=(user_info["email"] if user_info else None) or user.email,
         )
-    finally:
-        await conn.close()
 
 
 @router.put("/update", response_model=ProfileResponse)
 async def update_profile(body: CreateProfileRequest, user: AuthorizedUser) -> ProfileResponse:
     """Update an existing user profile.
-    
+
     Allows users to change their role or family.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Children cannot update their own profile (currency, role, family).
         # Those are managed by parents via the family management endpoints.
         current = await conn.fetchrow(
@@ -369,5 +358,3 @@ async def update_profile(body: CreateProfileRequest, user: AuthorizedUser) -> Pr
             name=(user_info["name"] if user_info else None) or user.name,
             email=(user_info["email"] if user_info else None) or user.email,
         )
-    finally:
-        await conn.close()

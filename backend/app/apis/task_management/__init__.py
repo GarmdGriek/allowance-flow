@@ -7,14 +7,13 @@ This API provides CRUD operations for household tasks.
 All endpoints require parent role authentication.
 """
 
-import asyncpg
-import os
 from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.auth import AuthorizedUser
+from app.db import get_pool
 from app.libs.models import TaskStatus
 
 router = APIRouter(prefix="/tasks", tags=["task_management"])
@@ -113,11 +112,10 @@ async def create_task(body: CreateTaskRequest, user: AuthorizedUser) -> TaskResp
     Only parents can create tasks.
     The task will be associated with the parent's family.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Verify user is a parent and get family_id
         family_id = await verify_parent_role(user.sub, conn)
-        
+
         # Validate recurrence_days if recurring
         recurrence_days_json = None
         if body.is_recurring and body.recurrence_days:
@@ -180,8 +178,6 @@ async def create_task(body: CreateTaskRequest, user: AuthorizedUser) -> TaskResp
             parent_task_id=str(task["parent_task_id"]) if task["parent_task_id"] is not None else None,
             auto_recreate=task["auto_recreate"]
         )
-    finally:
-        await conn.close()
 
 
 @router.get("", response_model=List[TaskResponse])
@@ -192,17 +188,16 @@ async def list_tasks(user: AuthorizedUser) -> List[TaskResponse]:
     Children: See only tasks assigned to them (excluding templates)
     Returns tasks with user names populated.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Get user's profile to determine role and family
         profile = await conn.fetchrow(
             "SELECT role, family_id FROM user_profiles WHERE user_id = $1",
             user.sub
         )
-        
+
         if not profile:
             raise HTTPException(status_code=404, detail="Profile not found")
-        
+
         # Build query based on role
         if profile["role"] == "parent":
             # Parents see all family tasks (excluding archived)
@@ -272,8 +267,6 @@ async def list_tasks(user: AuthorizedUser) -> List[TaskResponse]:
             ))
         
         return result
-    finally:
-        await conn.close()
 
 
 @router.put("/{task_id}", response_model=TaskResponse)
@@ -291,17 +284,16 @@ async def update_task(task_id: str, body: UpdateTaskRequest, user: AuthorizedUse
     - If status changes to 'completed' or 'paid', archives and creates new task
     - Otherwise updates in place
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Get user's profile to determine role and family
         profile = await conn.fetchrow(
             "SELECT role, family_id FROM user_profiles WHERE user_id = $1",
             user.sub
         )
-        
+
         if not profile:
             raise HTTPException(status_code=404, detail="Profile not found")
-        
+
         family_id = profile["family_id"]
         user_role = profile["role"]
         
@@ -515,8 +507,6 @@ async def update_task(task_id: str, body: UpdateTaskRequest, user: AuthorizedUse
             parent_task_id=str(new_task["parent_task_id"]) if new_task["parent_task_id"] is not None else None,
             auto_recreate=new_task["auto_recreate"]
         )
-    finally:
-        await conn.close()
 
 
 @router.delete("/{task_id}")
@@ -526,11 +516,10 @@ async def delete_task(task_id: str, user: AuthorizedUser) -> dict:
     Only parents can delete tasks.
     This will permanently remove the task from the database.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Verify user is a parent and get family_id
         family_id = await verify_parent_role(user.sub, conn)
-        
+
         # Delete the task (only if it belongs to the family)
         result = await conn.execute(
             "DELETE FROM tasks WHERE id = $1 AND family_id = $2",
@@ -545,5 +534,3 @@ async def delete_task(task_id: str, user: AuthorizedUser) -> dict:
             )
         
         return {"message": "Task deleted successfully"}
-    finally:
-        await conn.close()

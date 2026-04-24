@@ -5,10 +5,10 @@ Provides endpoints for automated processes like weekly summaries.
 
 from fastapi import APIRouter
 from pydantic import BaseModel
-import asyncpg
-import os
 from datetime import datetime, timedelta
 import uuid
+
+from app.db import get_pool
 
 router = APIRouter()
 
@@ -32,8 +32,7 @@ async def send_weekly_summary() -> WeeklySummaryResult:
     Returns:
         Summary of notifications sent
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         notifications_sent = 0
         families_processed = 0
         children_summarized = 0
@@ -139,6 +138,3 @@ async def send_weekly_summary() -> WeeklySummaryResult:
             children_summarized=children_summarized,
             details=details
         )
-    
-    finally:
-        await conn.close()

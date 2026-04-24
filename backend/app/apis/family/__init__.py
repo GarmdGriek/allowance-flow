@@ -10,7 +10,6 @@ import base64
 import hashlib
 import hmac
 import httpx
-import os
 import re
 import secrets
 from typing import List, Optional
@@ -19,6 +18,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.auth import AuthorizedUser
+from app.db import get_pool
 from app.libs.models import UserRole
 
 router = APIRouter(prefix="/family", tags=["family"])
@@ -143,8 +143,7 @@ async def list_children(user: AuthorizedUser) -> list[ChildResponse]:
     
     Only parents can view children.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Get user's profile
         profile = await conn.fetchrow(
             "SELECT role, family_id FROM user_profiles WHERE user_id = $1",
@@ -191,8 +190,6 @@ async def list_children(user: AuthorizedUser) -> list[ChildResponse]:
             )
             for child in children_data
         ]
-    finally:
-        await conn.close()
 
 
 @router.get("/parents")
@@ -201,8 +198,7 @@ async def list_parents(user: AuthorizedUser) -> list[ParentResponse]:
     
     Available to all family members.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Get user's profile
         profile = await conn.fetchrow(
             "SELECT role, family_id FROM user_profiles WHERE user_id = $1",
@@ -247,8 +243,6 @@ async def list_parents(user: AuthorizedUser) -> list[ParentResponse]:
             )
             for row in rows
         ]
-    finally:
-        await conn.close()
 
 
 @router.post("/invites", response_model=FamilyInviteResponse, status_code=status.HTTP_201_CREATED)
@@ -258,8 +252,7 @@ async def create_invite(body: CreateInviteRequest, user: AuthorizedUser) -> Fami
     Only parents can create invites.
     Generates a unique invite code that can be shared with family members.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Check if user is a parent
         profile = await conn.fetchrow(
             "SELECT role, family_id FROM user_profiles WHERE user_id = $1",
@@ -308,8 +301,6 @@ async def create_invite(body: CreateInviteRequest, user: AuthorizedUser) -> Fami
             revoked=invite["revoked"],
             revoked_at=invite["revoked_at"].isoformat() if invite["revoked_at"] else None
         )
-    finally:
-        await conn.close()
 
 
 @router.get("/invites", response_model=List[FamilyInviteResponse])
@@ -318,8 +309,7 @@ async def list_invites(user: AuthorizedUser) -> List[FamilyInviteResponse]:
     
     Only parents can view invites.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Check if user is a parent
         profile = await conn.fetchrow(
             "SELECT role, family_id FROM user_profiles WHERE user_id = $1",
@@ -365,8 +355,6 @@ async def list_invites(user: AuthorizedUser) -> List[FamilyInviteResponse]:
             )
             for invite in invites
         ]
-    finally:
-        await conn.close()
 
 
 @router.delete("/invites/{invite_id}")
@@ -375,8 +363,7 @@ async def revoke_invite(invite_id: str, user: AuthorizedUser) -> dict:
     
     Only the parent who created the invite can revoke it.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Check if user is a parent and owns this invite
         profile = await conn.fetchrow(
             "SELECT role, family_id FROM user_profiles WHERE user_id = $1",
@@ -413,8 +400,6 @@ async def revoke_invite(invite_id: str, user: AuthorizedUser) -> dict:
             )
         
         return {"message": "Invite revoked successfully"}
-    finally:
-        await conn.close()
 
 
 @router.get("/pending-members", response_model=List[PendingMemberResponse])
@@ -423,8 +408,7 @@ async def list_pending_members(user: AuthorizedUser) -> List[PendingMemberRespon
     
     Only parents can view pending members.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Check if user is a parent
         profile = await conn.fetchrow(
             "SELECT role, family_id FROM user_profiles WHERE user_id = $1",
@@ -481,8 +465,6 @@ async def list_pending_members(user: AuthorizedUser) -> List[PendingMemberRespon
             )
             for member in members
         ]
-    finally:
-        await conn.close()
 
 
 @router.post("/approve-member")
@@ -491,8 +473,7 @@ async def approve_member(body: ApproveMemberRequest, user: AuthorizedUser) -> di
     
     Only parents can approve members.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Check if user is a parent
         profile = await conn.fetchrow(
             "SELECT role, family_id FROM user_profiles WHERE user_id = $1",
@@ -530,8 +511,6 @@ async def approve_member(body: ApproveMemberRequest, user: AuthorizedUser) -> di
             )
         
         return {"message": "Member approved successfully"}
-    finally:
-        await conn.close()
 
 
 @router.delete("/reject-member/{user_id}")
@@ -541,8 +520,7 @@ async def reject_member(user_id: str, user: AuthorizedUser) -> dict:
     Only parents can reject members.
     This will delete their profile.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Check if user is a parent
         profile = await conn.fetchrow(
             "SELECT role, family_id FROM user_profiles WHERE user_id = $1",
@@ -578,8 +556,6 @@ async def reject_member(user_id: str, user: AuthorizedUser) -> dict:
             )
         
         return {"message": "Member rejected successfully"}
-    finally:
-        await conn.close()
 
 
 @router.put("/children/{child_user_id}", response_model=ChildResponse)
@@ -589,8 +565,7 @@ async def update_child_profile(child_user_id: str, body: UpdateChildRequest, use
     Only parents can update children in their family.
     Currently supports updating name only.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Verify user is a parent
         parent_profile = await conn.fetchrow(
             "SELECT role, family_id FROM user_profiles WHERE user_id = $1",
@@ -697,8 +672,6 @@ async def update_child_profile(child_user_id: str, body: UpdateChildRequest, use
             pending_amount=str(child_data["pending_amount"]),
             phone_number=child_data["phone_number"]
         )
-    finally:
-        await conn.close()
 
 
 @router.get("/weekly-summary-settings", response_model=WeeklySummarySettingsResponse)
@@ -707,8 +680,7 @@ async def get_weekly_summary_settings(user: AuthorizedUser) -> WeeklySummarySett
     
     Only parents can view settings.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Get user's profile and verify they are a parent
         profile = await conn.fetchrow(
             "SELECT role, family_id FROM user_profiles WHERE user_id = $1",
@@ -748,8 +720,6 @@ async def get_weekly_summary_settings(user: AuthorizedUser) -> WeeklySummarySett
             day=family["weekly_summary_day"] or 0,
             hour=family["weekly_summary_hour"] or 18
         )
-    finally:
-        await conn.close()
 
 
 @router.put("/weekly-summary-settings", response_model=WeeklySummarySettingsResponse)
@@ -761,8 +731,7 @@ async def update_weekly_summary_settings(
     
     Only parents can update settings.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Get user's profile and verify they are a parent
         profile = await conn.fetchrow(
             "SELECT role, family_id FROM user_profiles WHERE user_id = $1",
@@ -830,8 +799,6 @@ async def update_weekly_summary_settings(
             day=updated_family["weekly_summary_day"],
             hour=updated_family["weekly_summary_hour"]
         )
-    finally:
-        await conn.close()
 
 
 def _hash_pin(pin: str) -> str:
@@ -906,8 +873,7 @@ async def create_child_account(body: CreateChildAccountRequest, user: Authorized
         raise HTTPException(status_code=500, detail="Auth service not configured")
     print(f"[family] NEON_AUTH_ISSUER resolved to {neon_auth_url!r}")
 
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Verify caller is a parent
         profile = await conn.fetchrow(
             "SELECT family_id, role FROM user_profiles WHERE user_id = $1 AND status = 'active'",
@@ -999,8 +965,6 @@ async def create_child_account(body: CreateChildAccountRequest, user: Authorized
             family_id=family_id,
             currency=body.currency,
         )
-    finally:
-        await conn.close()
 
 
 @router.put("/children/{child_user_id}/pin")
@@ -1010,8 +974,7 @@ async def update_child_pin(child_user_id: str, body: UpdateChildPinRequest, user
     The PIN is stored as a PBKDF2 hash in user_profiles — no Better Auth admin
     API needed, so this works with Neon Auth's hosted instance.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Verify caller is a parent in the same family as the child
         parent_profile = await conn.fetchrow(
             "SELECT family_id, role FROM user_profiles WHERE user_id = $1 AND status = 'active'",
@@ -1038,8 +1001,6 @@ async def update_child_pin(child_user_id: str, body: UpdateChildPinRequest, user
         )
         if result == "UPDATE 0":
             raise HTTPException(status_code=404, detail="Child profile not found")
-    finally:
-        await conn.close()
 
     return {"success": True}
 
@@ -1059,8 +1020,7 @@ async def rename_family_id(body: RenameFamilyIdRequest, user: AuthorizedUser) ->
     """
     new_id = body.new_family_id.lower().strip()
 
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Verify caller is an active parent
         profile = await conn.fetchrow(
             "SELECT family_id, role FROM user_profiles WHERE user_id = $1 AND status = 'active'",
@@ -1102,7 +1062,5 @@ async def rename_family_id(body: RenameFamilyIdRequest, user: AuthorizedUser) ->
             #    ON DELETE CASCADE has nothing to remove)
             await conn.execute("DELETE FROM families WHERE id = $1", old_id)
 
-    finally:
-        await conn.close()
 
     return RenameFamilyIdResponse(new_family_id=new_id)

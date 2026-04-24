@@ -6,9 +6,9 @@
 This API provides automation for creating task instances from recurring templates.
 """
 
-import asyncpg
-import os
 from datetime import datetime, timezone
+
+from app.db import get_pool
 from typing import List
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -35,8 +35,7 @@ async def process_recurring_tasks() -> RecurringTaskProcessResult:
     
     Should be run daily via scheduled automation.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         # Get current day of week (0=Sunday, 6=Saturday)
         now = datetime.now(timezone.utc)
         current_weekday = now.weekday()
@@ -164,6 +163,3 @@ async def process_recurring_tasks() -> RecurringTaskProcessResult:
             tasks_processed=tasks_processed,
             details=details
         )
-        
-    finally:
-        await conn.close()

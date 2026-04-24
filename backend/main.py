@@ -2,9 +2,12 @@ import os
 import pathlib
 import json
 import traceback
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, APIRouter, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+
+from app.db import init_pool, close_pool
 
 # Load .env files for local development.
 # On Railway, env vars are injected directly so python-dotenv is optional.
@@ -126,9 +129,16 @@ def parse_auth_configs() -> list[AuthConfig]:
     return auth_configs
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_pool()
+    yield
+    await close_pool()
+
+
 def create_app() -> FastAPI:
     """Create the app. This is called by uvicorn with the factory option to construct the app object."""
-    app = FastAPI()
+    app = FastAPI(lifespan=lifespan)
 
     # Global exception handler: catches unhandled errors so they return JSON.
     #

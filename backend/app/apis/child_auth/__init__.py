@@ -7,14 +7,14 @@ This module is intentionally auth-free (disableAuth: true in routers.json)
 because the child does not have a JWT yet — they are trying to get one.
 """
 
-import asyncpg
 import base64
 import hashlib
 import hmac
-import os
 import re
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+
+from app.db import get_pool
 
 router = APIRouter(prefix="/child-auth", tags=["child-auth"])
 
@@ -99,13 +99,7 @@ async def child_sign_in(body: ChildSignInRequest) -> ChildSignInResponse:
             f"codepoints={[ord(c) for c in raw_pin]}"
         )
 
-    try:
-        conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    except Exception as exc:
-        print(f"[child-auth] DB connect error: {exc}")
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-
-    try:
+    async with get_pool().acquire() as conn:
         # Step 1: look up by stored username slug (fast path for accounts created
         # with the new code).  If the column throws (pre-migration) or returns
         # nothing (account created before username was stored), fall through to
@@ -193,5 +187,3 @@ async def child_sign_in(body: ChildSignInRequest) -> ChildSignInResponse:
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         return ChildSignInResponse(virtual_email=neon_email, auth_token=auth_token)
-    finally:
-        await conn.close()

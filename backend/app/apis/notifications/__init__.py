@@ -6,10 +6,9 @@ Provides endpoints for listing, creating, and managing notifications.
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List, Optional
-import asyncpg
-import os
 
 from app.auth import AuthorizedUser
+from app.db import get_pool
 
 router = APIRouter()
 
@@ -43,22 +42,21 @@ async def list_notifications(user: AuthorizedUser, unread_only: bool = False) ->
     Returns:
         List of notifications ordered by most recent first
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         query = """
             SELECT id, user_id, family_id, title, message, notification_type,
                    is_read, created_at, read_at, metadata
             FROM notifications
             WHERE user_id = $1
         """
-        
+
         if unread_only:
             query += " AND is_read = FALSE"
-        
+
         query += " ORDER BY created_at DESC LIMIT 50"
-        
+
         rows = await conn.fetch(query, user.sub)
-        
+
         result = []
         for row in rows:
             result.append(NotificationResponse(
@@ -73,25 +71,20 @@ async def list_notifications(user: AuthorizedUser, unread_only: bool = False) ->
                 read_at=row["read_at"].isoformat() if row["read_at"] else None,
                 metadata=row["metadata"]
             ))
-        
+
         return result
-    finally:
-        await conn.close()
 
 
 @router.get("/unread-count")
 async def get_unread_count(user: AuthorizedUser) -> dict:
     """Get count of unread notifications for the current user."""
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         count = await conn.fetchval(
             "SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = FALSE",
             user.sub
         )
-        
+
         return {"count": count}
-    finally:
-        await conn.close()
 
 
 @router.post("/mark-read")
@@ -100,9 +93,7 @@ async def mark_notifications_read(body: MarkReadRequest, user: AuthorizedUser) -
     
     Only allows marking notifications owned by the current user.
     """
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
-        # Update notifications that belong to the user
+    async with get_pool().acquire() as conn:
         result = await conn.execute(
             """
             UPDATE notifications
@@ -112,23 +103,19 @@ async def mark_notifications_read(body: MarkReadRequest, user: AuthorizedUser) -
             body.notification_ids,
             user.sub
         )
-        
-        # Extract number of updated rows
+
         updated_count = int(result.split()[-1]) if result else 0
-        
+
         return {
             "success": True,
             "marked_count": updated_count
         }
-    finally:
-        await conn.close()
 
 
 @router.post("/mark-all-read")
 async def mark_all_read(user: AuthorizedUser) -> dict:
     """Mark all notifications as read for the current user."""
-    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
-    try:
+    async with get_pool().acquire() as conn:
         result = await conn.execute(
             """
             UPDATE notifications
@@ -137,12 +124,10 @@ async def mark_all_read(user: AuthorizedUser) -> dict:
             """,
             user.sub
         )
-        
+
         updated_count = int(result.split()[-1]) if result else 0
-        
+
         return {
             "success": True,
             "marked_count": updated_count
         }
-    finally:
-        await conn.close()
