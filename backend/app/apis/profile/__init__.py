@@ -15,6 +15,18 @@ from app.libs.models import UserRole
 router = APIRouter(prefix="/profile", tags=["profile"])
 
 
+@router.get("/whoami")
+async def whoami(user: AuthorizedUser) -> dict:
+    """Return the JWT sub and basic claims for the current session.
+    Useful for diagnosing mismatched user_id vs database profile.
+    """
+    return {
+        "user_id": user.sub,
+        "email": getattr(user, "email", None),
+        "name": getattr(user, "name", None),
+    }
+
+
 # Request/Response Models
 class CreateProfileRequest(BaseModel):
     """Request model for creating a user profile."""
