@@ -134,8 +134,12 @@ export default function ProfileSettings() {
   if (!profile) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-2xl mx-auto space-y-4">
           <p className="text-center text-red-600">{t("profile.profileNotFound")}</p>
+          <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 text-sm font-mono break-all text-center">
+            <p className="text-muted-foreground mb-1">Your current session user ID:</p>
+            <p className="font-bold select-all">{user.id}</p>
+          </div>
         </div>
       </div>
     );
