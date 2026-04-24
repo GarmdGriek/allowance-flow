@@ -51,7 +51,7 @@ export default function Archive() {
   const [selectedChild, setSelectedChild] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [currency, setCurrency] = useState("kr");
-  const [userRole, setUserRole] = useState<"parent" | "child">("parent");
+  const [userRole, setUserRole] = useState<"parent" | "child">("child");
 
   const dateLocale = i18n.language === "nb" ? nb : enUS;
 

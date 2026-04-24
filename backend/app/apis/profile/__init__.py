@@ -229,6 +229,75 @@ async def setup_profile(body: CreateProfileRequest, user: AuthorizedUser) -> Pro
         await conn.close()
 
 
+@router.post("/reclaim-parent", response_model=ProfileResponse)
+async def reclaim_parent(user: AuthorizedUser) -> ProfileResponse:
+    """Recovery endpoint: promotes the caller's own profile back to parent/active.
+
+    Allowed only when the family has no OTHER active parent — meaning the caller
+    must have been the original (and only) parent whose role got corrupted.
+    This prevents a child from escalating privileges in a family that already
+    has a healthy parent account.
+    """
+    conn = await asyncpg.connect(os.environ.get("DATABASE_URL"))
+    try:
+        profile = await conn.fetchrow(
+            "SELECT user_id, role, family_id, currency, status FROM user_profiles WHERE user_id = $1",
+            user.sub,
+        )
+        if not profile:
+            raise HTTPException(status_code=404, detail="No profile found — use /setup to create one first")
+
+        family_id = profile["family_id"]
+
+        # Check whether another active parent already exists in this family
+        other_parent_count = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM user_profiles
+            WHERE family_id = $1 AND role = 'parent' AND status = 'active' AND user_id != $2
+            """,
+            family_id,
+            user.sub,
+        )
+        if other_parent_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This family already has an active parent. Ask them to update your role via Family Settings.",
+            )
+
+        # Restore parent/active
+        updated = await conn.fetchrow(
+            """
+            UPDATE user_profiles
+            SET role = 'parent', status = 'active', updated_at = NOW()
+            WHERE user_id = $1
+            RETURNING user_id, role, family_id, currency, status, created_at, updated_at
+            """,
+            user.sub,
+        )
+
+        user_info = None
+        try:
+            user_info = await conn.fetchrow(
+                "SELECT name, email FROM neon_auth.users_sync WHERE id = $1", user.sub
+            )
+        except Exception:
+            pass
+
+        return ProfileResponse(
+            user_id=updated["user_id"],
+            role=updated["role"],
+            family_id=updated["family_id"],
+            currency=updated["currency"],
+            status=updated["status"],
+            created_at=updated["created_at"].isoformat(),
+            updated_at=updated["updated_at"].isoformat(),
+            name=(user_info["name"] if user_info else None) or user.name,
+            email=(user_info["email"] if user_info else None) or user.email,
+        )
+    finally:
+        await conn.close()
+
+
 @router.put("/update", response_model=ProfileResponse)
 async def update_profile(body: CreateProfileRequest, user: AuthorizedUser) -> ProfileResponse:
     """Update an existing user profile.

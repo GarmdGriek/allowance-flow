@@ -63,6 +63,7 @@ export default function TaskManagement() {
   const [children, setChildren] = useState<Child[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currencySymbol, setCurrencySymbol] = useState("$");
+  const [userRole, setUserRole] = useState<"parent" | "child">("child");
   const [taskViewTab, setTaskViewTab] = useState<"all" | "recurring">("all");
   
   // Edit dialog state
@@ -117,6 +118,7 @@ export default function TaskManagement() {
       
       const profileData = await profileResponse.json();
       setCurrencySymbol(getCurrencySymbol(profileData.currency));
+      setUserRole(profileData.role ?? "child");
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error(t("taskManagement.failedToLoadTasks"));
@@ -221,7 +223,7 @@ export default function TaskManagement() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
-      <PageHeader title={t("app.taskManagement") || "Task Management"} userRole="parent" />
+      <PageHeader title={t("app.taskManagement") || "Task Management"} userRole={userRole} />
       
       <div className="max-w-7xl mx-auto p-4 md:p-6">
         {/* Tasks Table */}

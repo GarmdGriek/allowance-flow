@@ -275,6 +275,29 @@ export default function App() {
     );
   }
 
+  // Recovery banner: real-email user stuck with child role
+  // Virtual child emails end in .local — if it's a normal email the account
+  // was probably a parent whose role got corrupted during a backend outage.
+  const isVirtualChildEmail = profile?.email?.endsWith(".local") ?? false;
+  const showParentRecovery = profile?.role === "child" && !isVirtualChildEmail;
+
+  const handleReclaimParent = async () => {
+    try {
+      const response = await apiClient.reclaim_parent();
+      if (response.ok) {
+        const updated = await response.json();
+        setProfile(updated);
+        setUserRole(updated.role);
+        toast.success("Parent access restored — reloading your dashboard.");
+      } else {
+        const err = await response.json().catch(() => ({}));
+        toast.error(err.detail || "Could not restore parent access.");
+      }
+    } catch (e) {
+      toast.error("Request failed — please try again.");
+    }
+  };
+
   // Show pending approval message
   if (profile && profile.status === "pending") {
     return (
@@ -1150,10 +1173,28 @@ export default function App() {
             </div>
           ) : userRole === "child" ? (
             // Child Dashboard View (Real Child Login)
-            <ChildDashboard 
-              userId={user?.id || ''}
-              currencySymbol={currencySymbol}
-            />
+            <div className="space-y-4">
+              {showParentRecovery && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                  <div className="flex-1">
+                    <p className="font-semibold text-amber-800 dark:text-amber-300">⚠️ {t("recovery.wrongRoleTitle") || "Account role looks wrong"}</p>
+                    <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
+                      {t("recovery.wrongRoleDescription") || "Your account has a real email address but is marked as a child. If you are the parent, tap the button to restore your access."}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleReclaimParent}
+                    className="bg-amber-600 hover:bg-amber-700 text-white shrink-0"
+                  >
+                    {t("recovery.restoreParentAccess") || "Restore parent access"}
+                  </Button>
+                </div>
+              )}
+              <ChildDashboard
+                userId={user?.id || ''}
+                currencySymbol={currencySymbol}
+              />
+            </div>
           ) : (
             <p>Loading...</p>
           )}

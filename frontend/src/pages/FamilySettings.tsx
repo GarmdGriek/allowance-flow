@@ -168,7 +168,7 @@ export default function FamilySettings() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
-      <PageHeader title={t("family.familySettings") || "Family Settings"} userRole="parent" />
+      <PageHeader title={t("family.familySettings") || "Family Settings"} userRole={profile?.role ?? "child"} />
       
       <div className="max-w-4xl mx-auto p-6">
         <div className="space-y-6">
