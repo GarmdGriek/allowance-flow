@@ -386,10 +386,10 @@ async def update_task(task_id: str, body: UpdateTaskRequest, user: AuthorizedUse
             new_task = updated_task
             
         else:
-            # REGULAR TASK OR INSTANCE: Check if this is a recurring task instance or auto_recreate task
-            # Note: scheduler-created instances have is_recurring=False but do have parent_task_id set,
-            # so we detect them by parent_task_id alone.
-            is_recurring_instance = existing_task["parent_task_id"] is not None
+            # REGULAR TASK OR INSTANCE: Check if this is an auto_recreate task.
+            # Scheduler-based recurring tasks (is_recurring=TRUE templates) rely on the
+            # daily background scheduler to create the next instance on the correct day.
+            # Only auto_recreate tasks should regenerate immediately on completion.
             is_auto_recreate_task = existing_task["auto_recreate"]
 
             status_changing_to_done = (
@@ -398,10 +398,10 @@ async def update_task(task_id: str, body: UpdateTaskRequest, user: AuthorizedUse
                 existing_task["status"] not in ['completed', 'paid', 'archived']
             )
 
-            # Archive and create new task if:
-            # 1. This is a recurring instance being completed/paid, OR
-            # 2. This is an auto_recreate task being completed
-            if status_changing_to_done and (is_recurring_instance or is_auto_recreate_task):
+            # Recreate immediately only for auto_recreate tasks.
+            # is_recurring tasks are handled by the daily background scheduler in main.py
+            # which respects recurrence_days (e.g. daily, Saturdays-only, etc.).
+            if status_changing_to_done and is_auto_recreate_task:
                 # Mark old task as completed so it counts toward balance
                 final_status = 'completed'
                 await conn.execute(

@@ -1,8 +1,10 @@
+import asyncio
 import os
 import pathlib
 import json
 import traceback
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone, timedelta
 from fastapi import FastAPI, APIRouter, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -129,10 +131,40 @@ def parse_auth_configs() -> list[AuthConfig]:
     return auth_configs
 
 
+async def _recurring_tasks_scheduler():
+    """Background task: run the recurring-task automation once per day at 06:00 UTC.
+
+    Importing the handler here avoids circular imports at module load time.
+    Each uvicorn worker runs this loop independently, but the idempotency guard
+    inside process_recurring_tasks prevents duplicate instance creation.
+    """
+    from app.apis.recurring_automation import process_recurring_tasks
+    while True:
+        now = datetime.now(timezone.utc)
+        # Next 06:00 UTC — if we are already past today's run time, schedule for tomorrow.
+        target = now.replace(hour=6, minute=0, second=0, microsecond=0)
+        if now >= target:
+            target += timedelta(days=1)
+        delay = (target - now).total_seconds()
+        print(f"[scheduler] Recurring tasks scheduled at {target.isoformat()} (in {delay:.0f}s)")
+        await asyncio.sleep(delay)
+        try:
+            result = await process_recurring_tasks()
+            print(f"[scheduler] Recurring tasks done — created {result.tasks_created} instance(s)")
+        except Exception as exc:
+            print(f"[scheduler] Error running recurring tasks: {exc}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_pool()
+    scheduler_task = asyncio.create_task(_recurring_tasks_scheduler())
     yield
+    scheduler_task.cancel()
+    try:
+        await scheduler_task
+    except asyncio.CancelledError:
+        pass
     await close_pool()
 
 
