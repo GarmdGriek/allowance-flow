@@ -494,12 +494,20 @@ export default function App() {
   const currentChild = children.find(c => c.id === selectedChild);
   const childTasks = tasks.filter(t => t.assigned_to_user_id === selectedChild);
 
+  // Pre-compute filtered task lists once — avoids re-filtering on every JSX expression
+  const filteredAvailableTasks = getFilteredTasks('available');
+  const filteredCompletedTasks = getFilteredTasks('completed');
+  const filteredPaidTasks = getFilteredTasks('paid');
+
   // If in preview mode, get the child being previewed
   const previewChild = isPreviewMode ? children.find(c => c.id === previewChildId) : null;
-  const previewTasks = isPreviewMode ? tasks.filter(t => 
-    t.assigned_to_user_id === previewChildId && 
-    !(t.is_recurring && !t.parent_task_id) // Exclude recurring templates
+  const previewTasks = isPreviewMode ? tasks.filter(t =>
+    t.assigned_to_user_id === previewChildId &&
+    !(t.is_recurring && !t.parent_task_id)
   ) : [];
+  const previewAvailableTasks = previewTasks.filter(t => t.status === 'available');
+  const previewCompletedTasks = previewTasks.filter(t => t.status === 'completed');
+  const previewPaidTasks = previewTasks.filter(t => t.status === 'paid');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
@@ -559,13 +567,13 @@ export default function App() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="available">
-                          {t("app.available")} ({previewTasks.filter(t => t.status === 'available').length})
+                          {t("app.available")} ({previewAvailableTasks.length})
                         </SelectItem>
                         <SelectItem value="completed">
-                          {t("taskStatus.completed")} ({previewTasks.filter(t => t.status === 'completed').length})
+                          {t("taskStatus.completed")} ({previewCompletedTasks.length})
                         </SelectItem>
                         <SelectItem value="paid">
-                          {t("taskStatus.paid")} ({previewTasks.filter(t => t.status === 'paid').length})
+                          {t("taskStatus.paid")} ({previewPaidTasks.length})
                         </SelectItem>
                       </SelectContent>
                     </Select>
@@ -574,9 +582,9 @@ export default function App() {
                   {/* Desktop: Tabs */}
                   <Tabs value={previewActiveTab} onValueChange={setPreviewActiveTab} className="w-full hidden md:block">
                     <TabsList className="grid w-full grid-cols-3">
-                      <TabsTrigger value="available">{t("app.available")} ({previewTasks.filter(t => t.status === 'available').length})</TabsTrigger>
-                      <TabsTrigger value="completed">{t("taskStatus.completed")} ({previewTasks.filter(t => t.status === 'completed').length})</TabsTrigger>
-                      <TabsTrigger value="paid">{t("taskStatus.paid")} ({previewTasks.filter(t => t.status === 'paid').length})</TabsTrigger>
+                      <TabsTrigger value="available">{t("app.available")} ({previewAvailableTasks.length})</TabsTrigger>
+                      <TabsTrigger value="completed">{t("taskStatus.completed")} ({previewCompletedTasks.length})</TabsTrigger>
+                      <TabsTrigger value="paid">{t("taskStatus.paid")} ({previewPaidTasks.length})</TabsTrigger>
                     </TabsList>
                   </Tabs>
 
@@ -584,10 +592,10 @@ export default function App() {
                   <div className="mt-4">
                     {previewActiveTab === "available" && (
                       <div className="space-y-3">
-                        {previewTasks.filter(t => t.status === 'available').length === 0 ? (
+                        {previewAvailableTasks.length === 0 ? (
                           <p className="text-muted-foreground text-center py-8">{t("app.noAvailableTasks")}</p>
                         ) : (
-                          previewTasks.filter(t => t.status === 'available').map((task) => (
+                          previewAvailableTasks.map((task) => (
                             <Card key={task.id} className="border-l-4 border-l-blue-400">
                               <CardContent className="p-4">
                                 {/* Task Title */}
@@ -627,10 +635,10 @@ export default function App() {
 
                     {previewActiveTab === "completed" && (
                       <div className="space-y-3">
-                        {previewTasks.filter(t => t.status === 'completed').length === 0 ? (
+                        {previewCompletedTasks.length === 0 ? (
                           <p className="text-muted-foreground text-center py-8">{t("app.noCompletedTasks")}</p>
                         ) : (
-                          previewTasks.filter(t => t.status === 'completed').map((task) => (
+                          previewCompletedTasks.map((task) => (
                             <Card key={task.id} className="border-l-4 border-l-green-400">
                               <CardContent className="p-4">
                                 {/* Task Title */}
@@ -674,10 +682,10 @@ export default function App() {
 
                     {previewActiveTab === "paid" && (
                       <div className="space-y-3">
-                        {previewTasks.filter(t => t.status === 'paid').length === 0 ? (
+                        {previewPaidTasks.length === 0 ? (
                           <p className="text-muted-foreground text-center py-8">{t("app.noPaidTasks")}</p>
                         ) : (
-                          previewTasks.filter(t => t.status === 'paid').map((task) => (
+                          previewPaidTasks.map((task) => (
                             <Card key={task.id} className="border-l-4 border-l-gray-400">
                               <CardContent className="p-4">
                                 {/* Task Title */}
@@ -920,13 +928,13 @@ export default function App() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="available">
-                          {t("app.available")} ({getFilteredTasks('available').length})
+                          {t("app.available")} ({filteredAvailableTasks.length})
                         </SelectItem>
                         <SelectItem value="completed">
-                          {t("taskStatus.completed")} ({getFilteredTasks('completed').length})
+                          {t("taskStatus.completed")} ({filteredCompletedTasks.length})
                         </SelectItem>
                         <SelectItem value="paid">
-                          {t("taskStatus.paid")} ({getFilteredTasks('paid').length})
+                          {t("taskStatus.paid")} ({filteredPaidTasks.length})
                         </SelectItem>
                       </SelectContent>
                     </Select>
@@ -934,9 +942,9 @@ export default function App() {
 
                   {/* Desktop: Tabs */}
                   <TabsList className="hidden md:grid w-full grid-cols-3">
-                    <TabsTrigger value="available">{t("app.available")} ({getFilteredTasks('available').length})</TabsTrigger>
-                    <TabsTrigger value="completed">{t("taskStatus.completed")} ({getFilteredTasks('completed').length})</TabsTrigger>
-                    <TabsTrigger value="paid">{t("taskStatus.paid")} ({getFilteredTasks('paid').length})</TabsTrigger>
+                    <TabsTrigger value="available">{t("app.available")} ({filteredAvailableTasks.length})</TabsTrigger>
+                    <TabsTrigger value="completed">{t("taskStatus.completed")} ({filteredCompletedTasks.length})</TabsTrigger>
+                    <TabsTrigger value="paid">{t("taskStatus.paid")} ({filteredPaidTasks.length})</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="available" className="mt-4">
@@ -952,7 +960,7 @@ export default function App() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
-                          {getFilteredTasks('available').map(task => (
+                          {filteredAvailableTasks.map(task => (
                             <tr key={task.id} className="hover:bg-muted/30">
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-2">
@@ -1034,7 +1042,7 @@ export default function App() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
-                          {getFilteredTasks('completed').map(task => (
+                          {filteredCompletedTasks.map(task => (
                             <tr key={task.id} className="hover:bg-muted/30">
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-2">
@@ -1117,7 +1125,7 @@ export default function App() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
-                          {getFilteredTasks('paid').map(task => (
+                          {filteredPaidTasks.map(task => (
                             <tr key={task.id} className="hover:bg-muted/30">
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-2">

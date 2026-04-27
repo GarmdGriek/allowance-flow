@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -109,6 +109,10 @@ export function ChildDashboard({ userId, currencySymbol }: Props) {
     }
   };
 
+  const availableTasks = useMemo(() => tasks.filter(t => t.status === 'available'), [tasks]);
+  const completedTasks = useMemo(() => tasks.filter(t => t.status === 'completed'), [tasks]);
+  const paidTasks = useMemo(() => tasks.filter(t => t.status === 'paid'), [tasks]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -116,10 +120,6 @@ export function ChildDashboard({ userId, currencySymbol }: Props) {
       </div>
     );
   }
-
-  const availableTasks = tasks.filter(t => t.status === 'available');
-  const completedTasks = tasks.filter(t => t.status === 'completed');
-  const paidTasks = tasks.filter(t => t.status === 'paid');
 
   return (
     <div className="space-y-6">

@@ -229,21 +229,27 @@ async def list_tasks(user: AuthorizedUser) -> List[TaskResponse]:
             """
             tasks = await conn.fetch(query, profile["family_id"], user.sub)
         
-        # Build response with user names
-        result = []
+        # Build response with user names — batch all lookups in one query
         import json
+        user_ids: set = set()
         for task in tasks:
-            # Get user names
-            creator_name = await get_user_name(task["created_by"], conn)
-            
-            completed_name = None
-            if task["completed_by"]:
-                completed_name = await get_user_name(task["completed_by"], conn)
-            
-            assigned_name = None
-            if task["assigned_to_user_id"]:
-                assigned_name = await get_user_name(task["assigned_to_user_id"], conn)
-            
+            for field in ("created_by", "completed_by", "assigned_to_user_id"):
+                if task[field] is not None:
+                    user_ids.add(task[field])
+        name_map: dict = {}
+        if user_ids:
+            name_rows = await conn.fetch(
+                "SELECT user_id, COALESCE(name, 'Unknown User') AS name FROM user_profiles WHERE user_id = ANY($1)",
+                list(user_ids)
+            )
+            name_map = {str(row["user_id"]): row["name"] for row in name_rows}
+
+        result = []
+        for task in tasks:
+            creator_name = name_map.get(str(task["created_by"]), "Unknown User") if task["created_by"] else None
+            completed_name = name_map.get(str(task["completed_by"])) if task["completed_by"] else None
+            assigned_name = name_map.get(str(task["assigned_to_user_id"])) if task["assigned_to_user_id"] else None
+
             recurrence_days_list = json.loads(task["recurrence_days"]) if task["recurrence_days"] else None
             
             result.append(TaskResponse(
@@ -478,11 +484,16 @@ async def update_task(task_id: str, body: UpdateTaskRequest, user: AuthorizedUse
                     new_is_recurring, new_recurrence_days, completed_by, task_id
                 )
         
-        # Get user names
-        creator_name = await get_user_name(new_task["created_by"], conn)
-        assigned_name = await get_user_name(new_task["assigned_to_user_id"], conn) if new_task["assigned_to_user_id"] else None
-        
-        completed_name = await get_user_name(new_task["completed_by"], conn) if new_task["completed_by"] else None
+        # Batch-fetch user names in one query
+        _ids = {v for v in (new_task["created_by"], new_task["assigned_to_user_id"], new_task["completed_by"]) if v}
+        _name_rows = await conn.fetch(
+            "SELECT user_id, COALESCE(name, 'Unknown User') AS name FROM user_profiles WHERE user_id = ANY($1)",
+            list(_ids)
+        ) if _ids else []
+        _name_map = {str(r["user_id"]): r["name"] for r in _name_rows}
+        creator_name = _name_map.get(str(new_task["created_by"]), "Unknown User") if new_task["created_by"] else None
+        assigned_name = _name_map.get(str(new_task["assigned_to_user_id"])) if new_task["assigned_to_user_id"] else None
+        completed_name = _name_map.get(str(new_task["completed_by"])) if new_task["completed_by"] else None
         
         recurrence_days_list = json.loads(new_task["recurrence_days"]) if new_task["recurrence_days"] else None
 
