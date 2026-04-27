@@ -387,23 +387,23 @@ async def update_task(task_id: str, body: UpdateTaskRequest, user: AuthorizedUse
             
         else:
             # REGULAR TASK OR INSTANCE: Check if this is a recurring task instance or auto_recreate task
-            is_recurring_instance = existing_task["is_recurring"] and existing_task["parent_task_id"] is not None
+            # Note: scheduler-created instances have is_recurring=False but do have parent_task_id set,
+            # so we detect them by parent_task_id alone.
+            is_recurring_instance = existing_task["parent_task_id"] is not None
             is_auto_recreate_task = existing_task["auto_recreate"]
-            
+
             status_changing_to_done = (
-                body.status is not None and 
+                body.status is not None and
                 body.status in ['completed', 'paid'] and
                 existing_task["status"] not in ['completed', 'paid', 'archived']
             )
-            
+
             # Archive and create new task if:
             # 1. This is a recurring instance being completed/paid, OR
             # 2. This is an auto_recreate task being completed
             if status_changing_to_done and (is_recurring_instance or is_auto_recreate_task):
                 # Mark old task as completed so it counts toward balance
-                # For auto_recreate tasks, use 'completed' status so they contribute to balance
-                # For recurring instances, use 'archived' to hide from normal view
-                final_status = 'completed' if is_auto_recreate_task else 'archived'
+                final_status = 'completed'
                 await conn.execute(
                     "UPDATE tasks SET status = $1, completed_by = $2, completed_at = NOW() WHERE id = $3",
                     final_status,
