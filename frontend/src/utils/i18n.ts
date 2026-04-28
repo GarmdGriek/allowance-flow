@@ -58,6 +58,8 @@ const en = {
     recurringTask: "Recurring Task",
     recurrencePattern: "Recurrence Pattern",
     autoRecreate: "Auto-recreate when completed",
+    showDescription: "Show description",
+    hideDescription: "Hide description",
     days: {
       monday: "Monday",
       tuesday: "Tuesday",
@@ -466,6 +468,8 @@ const nb = {
     recurringTask: "Gjentakende oppgave",
     recurrencePattern: "Gjentakelsesmønster",
     autoRecreate: "Opprett automatisk på nytt ved fullføring",
+    showDescription: "Vis beskrivelse",
+    hideDescription: "Skjul beskrivelse",
     days: {
       monday: "Mandag",
       tuesday: "Tirsdag",

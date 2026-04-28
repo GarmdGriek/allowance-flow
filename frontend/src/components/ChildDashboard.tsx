@@ -43,6 +43,16 @@ export function ChildDashboard({ userId, currencySymbol }: Props) {
   const [childData, setChildData] = useState<ChildData>({ total_earned: 0, total_paid: 0, pending_amount: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<string>("available");
+  const [expandedDescriptions, setExpandedDescriptions] = useState<Set<string>>(new Set());
+
+  const toggleDescription = (taskId: string) => {
+    setExpandedDescriptions(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
 
   useEffect(() => {
     fetchChildData();
@@ -205,7 +215,18 @@ export function ChildDashboard({ userId, currencySymbol }: Props) {
                       <div className="flex-1 min-w-0">
                         <h4 className="font-semibold text-foreground">{task.title}</h4>
                         {task.description && (
-                          <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
+                          <>
+                            <p className="hidden md:block text-sm text-muted-foreground mt-1">{task.description}</p>
+                            <button
+                              className="md:hidden text-xs text-blue-600 dark:text-blue-400 mt-1 underline underline-offset-2"
+                              onClick={() => toggleDescription(task.id)}
+                            >
+                              {expandedDescriptions.has(task.id) ? t("tasks.hideDescription") : t("tasks.showDescription")}
+                            </button>
+                            {expandedDescriptions.has(task.id) && (
+                              <p className="md:hidden text-sm text-muted-foreground mt-1">{task.description}</p>
+                            )}
+                          </>
                         )}
                         <p className="text-sm text-orange-600 dark:text-orange-500 font-medium mt-1">
                           {currencySymbol}{task.value.toFixed(2)}
@@ -233,16 +254,27 @@ export function ChildDashboard({ userId, currencySymbol }: Props) {
                   completedTasks.map((task) => (
                     <div key={task.id} className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
                       <div className="flex justify-between items-start">
-                        <div>
+                        <div className="flex-1 min-w-0 mr-2">
                           <h4 className="font-semibold text-foreground">{task.title}</h4>
                           {task.description && (
-                            <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
+                            <>
+                              <p className="hidden md:block text-sm text-muted-foreground mt-1">{task.description}</p>
+                              <button
+                                className="md:hidden text-xs text-amber-600 dark:text-amber-400 mt-1 underline underline-offset-2"
+                                onClick={() => toggleDescription(task.id)}
+                              >
+                                {expandedDescriptions.has(task.id) ? t("tasks.hideDescription") : t("tasks.showDescription")}
+                              </button>
+                              {expandedDescriptions.has(task.id) && (
+                                <p className="md:hidden text-sm text-muted-foreground mt-1">{task.description}</p>
+                              )}
+                            </>
                           )}
                           <p className="text-sm text-orange-600 dark:text-orange-500 font-medium mt-1">
                             {currencySymbol}{task.value.toFixed(2)}
                           </p>
                         </div>
-                        <Clock className="w-5 h-5 text-amber-600 dark:text-amber-500" />
+                        <Clock className="w-5 h-5 text-amber-600 dark:text-amber-500 flex-shrink-0" />
                       </div>
                       <p className="text-xs text-muted-foreground mt-2">
                         {t("child.waitingForApproval")}
@@ -261,16 +293,27 @@ export function ChildDashboard({ userId, currencySymbol }: Props) {
                   paidTasks.map((task) => (
                     <div key={task.id} className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                       <div className="flex justify-between items-start">
-                        <div>
+                        <div className="flex-1 min-w-0 mr-2">
                           <h4 className="font-semibold text-foreground">{task.title}</h4>
                           {task.description && (
-                            <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
+                            <>
+                              <p className="hidden md:block text-sm text-muted-foreground mt-1">{task.description}</p>
+                              <button
+                                className="md:hidden text-xs text-green-600 dark:text-green-400 mt-1 underline underline-offset-2"
+                                onClick={() => toggleDescription(task.id)}
+                              >
+                                {expandedDescriptions.has(task.id) ? t("tasks.hideDescription") : t("tasks.showDescription")}
+                              </button>
+                              {expandedDescriptions.has(task.id) && (
+                                <p className="md:hidden text-sm text-muted-foreground mt-1">{task.description}</p>
+                              )}
+                            </>
                           )}
                           <p className="text-sm text-green-600 dark:text-green-500 font-medium mt-1">
                             {currencySymbol}{task.value.toFixed(2)}
                           </p>
                         </div>
-                        <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-500" />
+                        <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-500 flex-shrink-0" />
                       </div>
                       {task.completed_at && (
                         <p className="text-xs text-muted-foreground mt-2">

@@ -79,6 +79,16 @@ export default function TaskManagement() {
   
   // Delete dialog state
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
+  const [expandedDescriptions, setExpandedDescriptions] = useState<Set<string>>(new Set());
+
+  const toggleDescription = (taskId: string) => {
+    setExpandedDescriptions(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
 
   const WEEKDAYS = [
     { value: 0, label: t("weekdays.sun") },
@@ -266,9 +276,14 @@ export default function TaskManagement() {
                       {getFilteredTasks().map((task) => (
                         <TableRow key={task.id}>
                           <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              {task.is_recurring && <Repeat className="h-4 w-4 text-purple-600" />}
-                              {task.title}
+                            <div className="flex items-start gap-2">
+                              {task.is_recurring && <Repeat className="h-4 w-4 text-purple-600 mt-0.5 flex-shrink-0" />}
+                              <div>
+                                {task.title}
+                                {task.description && (
+                                  <p className="text-xs text-muted-foreground font-normal mt-0.5">{task.description}</p>
+                                )}
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell>{currencySymbol}{task.value}</TableCell>
@@ -308,12 +323,27 @@ export default function TaskManagement() {
                     <Card key={task.id} className="border-l-4 border-l-orange-400">
                       <CardContent className="p-4">
                         {/* Task Title */}
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2 mb-1">
                           {task.is_recurring && <Repeat className="h-4 w-4 text-purple-600 flex-shrink-0" />}
                           <h3 className="font-semibold text-base flex-1">{task.title}</h3>
                           {taskViewTab === "all" && getStatusBadge(task.status)}
                         </div>
-                        
+
+                        {/* Description toggle (mobile) */}
+                        {task.description && (
+                          <div className="mb-2">
+                            <button
+                              className="text-xs text-orange-600 dark:text-orange-400 underline underline-offset-2"
+                              onClick={() => toggleDescription(task.id)}
+                            >
+                              {expandedDescriptions.has(task.id) ? t("tasks.hideDescription") : t("tasks.showDescription")}
+                            </button>
+                            {expandedDescriptions.has(task.id) && (
+                              <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
+                            )}
+                          </div>
+                        )}
+
                         {/* Recurrence Days */}
                         {task.is_recurring && (
                           <div className="mb-3 px-3 py-2 bg-purple-50 dark:bg-purple-900/20 rounded-md">
