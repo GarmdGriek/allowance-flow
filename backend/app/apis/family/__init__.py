@@ -383,21 +383,22 @@ async def revoke_invite(invite_id: str, user: AuthorizedUser) -> dict:
                 detail="Only parents can revoke invites"
             )
         
-        # Revoke the invite
+        # Revoke the invite — only the creator may revoke it
         result = await conn.execute(
             """
             UPDATE family_invites
             SET revoked = TRUE, revoked_at = NOW()
-            WHERE id = $1 AND family_id = $2 AND revoked = FALSE
+            WHERE id = $1 AND family_id = $2 AND created_by = $3 AND revoked = FALSE
             """,
             invite_id,
-            profile["family_id"]
+            profile["family_id"],
+            user.sub,
         )
-        
+
         if result == "UPDATE 0":
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Invite not found or already revoked"
+                detail="Invite not found, already revoked, or not created by you"
             )
         
         return {"message": "Invite revoked successfully"}
@@ -1035,23 +1036,28 @@ async def rename_family_id(body: RenameFamilyIdRequest, user: AuthorizedUser) ->
         if old_id == new_id:
             return RenameFamilyIdResponse(new_family_id=new_id)
 
-        # Check new ID is not already taken
-        exists = await conn.fetchval("SELECT id FROM families WHERE id = $1", new_id)
-        if exists:
-            raise HTTPException(status_code=409, detail="That family ID is already taken")
-
         async with conn.transaction():
+            # Check new ID is not already taken inside the transaction so a
+            # concurrent rename to the same ID is caught by the unique constraint
+            # rather than silently succeeding.
+            exists = await conn.fetchval("SELECT id FROM families WHERE id = $1", new_id)
+            if exists:
+                raise HTTPException(status_code=409, detail="That family ID is already taken")
+
             # 1. Copy the family row under the new ID
-            await conn.execute(
-                """
-                INSERT INTO families (id, name, language, created_at, updated_at,
-                                      weekly_summary_enabled, weekly_summary_day, weekly_summary_hour)
-                SELECT $1, name, language, created_at, NOW(),
-                       weekly_summary_enabled, weekly_summary_day, weekly_summary_hour
-                FROM families WHERE id = $2
-                """,
-                new_id, old_id,
-            )
+            try:
+                await conn.execute(
+                    """
+                    INSERT INTO families (id, name, language, created_at, updated_at,
+                                          weekly_summary_enabled, weekly_summary_day, weekly_summary_hour)
+                    SELECT $1, name, language, created_at, NOW(),
+                           weekly_summary_enabled, weekly_summary_day, weekly_summary_hour
+                    FROM families WHERE id = $2
+                    """,
+                    new_id, old_id,
+                )
+            except asyncpg.UniqueViolationError:
+                raise HTTPException(status_code=409, detail="That family ID is already taken")
 
             # 2. Update all child tables to point to the new ID
             await conn.execute("UPDATE user_profiles SET family_id = $1 WHERE family_id = $2", new_id, old_id)
