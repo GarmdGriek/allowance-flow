@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 # Type aliases for role and status
 UserRole = Literal["parent", "child"]
-TaskStatus = Literal["available", "pending_approval", "completed", "paid"]
+TaskStatus = Literal["available", "pending_approval", "completed", "paid", "archived"]
 
 
 class UserProfile(BaseModel):

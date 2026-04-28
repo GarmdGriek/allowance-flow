@@ -181,8 +181,7 @@ async def child_sign_in(body: ChildSignInRequest) -> ChildSignInResponse:
             print(
                 f"[child-auth] PIN mismatch for username={username_slug!r} "
                 f"family_id={family_id!r} user_id={row['user_id']!r} "
-                f"received_len={len(pin)} received_codepoints={[ord(c) for c in pin]} "
-                f"stored_hash_len={len(pin_hash)} stored_hash_prefix={pin_hash[:24]!r}"
+                f"received_len={len(pin)} stored_hash_len={len(pin_hash)}"
             )
             raise HTTPException(status_code=401, detail="Invalid credentials")
 

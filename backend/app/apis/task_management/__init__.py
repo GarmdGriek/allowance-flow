@@ -8,6 +8,7 @@ All endpoints require parent role authentication.
 """
 
 import asyncpg
+import json
 from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, status
@@ -126,7 +127,6 @@ async def create_task(body: CreateTaskRequest, user: AuthorizedUser) -> TaskResp
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Recurrence days must be between 0 (Sunday) and 6 (Saturday)"
                 )
-            import json
             recurrence_days_json = json.dumps(body.recurrence_days)
         
         # Create the task
@@ -156,7 +156,6 @@ async def create_task(body: CreateTaskRequest, user: AuthorizedUser) -> TaskResp
         if task["assigned_to_user_id"]:
             assigned_name = await get_user_name(task["assigned_to_user_id"], conn)
         
-        import json
         recurrence_days_list = json.loads(task["recurrence_days"]) if task["recurrence_days"] else None
         
         return TaskResponse(
@@ -230,7 +229,6 @@ async def list_tasks(user: AuthorizedUser) -> List[TaskResponse]:
             tasks = await conn.fetch(query, profile["family_id"], user.sub)
         
         # Build response with user names — batch all lookups in one query
-        import json
         user_ids: set = set()
         for task in tasks:
             for field in ("created_by", "completed_by", "assigned_to_user_id"):
@@ -345,8 +343,6 @@ async def update_task(task_id: str, body: UpdateTaskRequest, user: AuthorizedUse
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="You can only update task status"
                 )
-        
-        import json
         
         # Check if this is a recurring template
         is_template = existing_task["is_recurring"] and existing_task["parent_task_id"] is None
