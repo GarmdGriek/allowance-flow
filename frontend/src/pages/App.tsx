@@ -40,6 +40,7 @@ type UserRole = "parent" | "child";
 interface Task {
   id: string;
   title: string;
+  description?: string | null;
   value: number;
   assigned_to_user_id: string | null;
   assigned_to_name: string | null;
@@ -100,7 +101,17 @@ export default function App() {
   const [autoRecreate, setAutoRecreate] = useState(false);
   
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
+  const [expandedDescriptions, setExpandedDescriptions] = useState<Set<string>>(new Set());
   const { isPreviewMode, previewChildId, previewChildName, enterPreviewMode, exitPreviewMode } = usePreviewStore();
+
+  const toggleDescription = (taskId: string) => {
+    setExpandedDescriptions(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
   const [searchParams, setSearchParams] = useSearchParams();
 
   // When navigating here from another page via "Forhåndsvisning" menu item,
@@ -155,6 +166,7 @@ export default function App() {
         const transformed = {
           id: task.id,
           title: task.title,
+          description: task.description ?? null,
           value: parseFloat(task.value),
           status: task.status,
           assigned_to_user_id: task.assigned_to_user_id,
@@ -599,11 +611,14 @@ export default function App() {
                             <Card key={task.id} className="border-l-4 border-l-blue-400">
                               <CardContent className="p-4">
                                 {/* Task Title */}
-                                <div className="flex items-center gap-2 mb-2">
+                                <div className="flex items-center gap-2 mb-1">
                                   {task.is_recurring && <Repeat className="h-4 w-4 text-purple-600 flex-shrink-0" />}
                                   <h3 className="font-semibold text-base flex-1">{task.title}</h3>
                                 </div>
-                                
+                                {task.description && (
+                                  <p className="text-sm text-muted-foreground mb-2">{task.description}</p>
+                                )}
+
                                 {/* Value and Assignment */}
                                 <div className="flex items-center justify-between mb-3">
                                   <span className="font-bold text-xl text-orange-600">
@@ -642,11 +657,14 @@ export default function App() {
                             <Card key={task.id} className="border-l-4 border-l-green-400">
                               <CardContent className="p-4">
                                 {/* Task Title */}
-                                <div className="flex items-center gap-2 mb-2">
+                                <div className="flex items-center gap-2 mb-1">
                                   {task.is_recurring && <Repeat className="h-4 w-4 text-purple-600 flex-shrink-0" />}
                                   <h3 className="font-semibold text-base flex-1">{task.title}</h3>
                                 </div>
-                                
+                                {task.description && (
+                                  <p className="text-sm text-muted-foreground mb-2">{task.description}</p>
+                                )}
+
                                 {/* Value and Assignment */}
                                 <div className="flex items-center justify-between mb-3">
                                   <span className="font-bold text-xl text-orange-600">
@@ -689,11 +707,14 @@ export default function App() {
                             <Card key={task.id} className="border-l-4 border-l-gray-400">
                               <CardContent className="p-4">
                                 {/* Task Title */}
-                                <div className="flex items-center gap-2 mb-2">
+                                <div className="flex items-center gap-2 mb-1">
                                   {task.is_recurring && <Repeat className="h-4 w-4 text-purple-600 flex-shrink-0" />}
                                   <h3 className="font-semibold text-base flex-1">{task.title}</h3>
                                 </div>
-                                
+                                {task.description && (
+                                  <p className="text-sm text-muted-foreground mb-2">{task.description}</p>
+                                )}
+
                                 {/* Value and Assignment */}
                                 <div className="flex items-center justify-between mb-2">
                                   <span className="font-bold text-xl text-orange-600">
@@ -963,9 +984,14 @@ export default function App() {
                           {filteredAvailableTasks.map(task => (
                             <tr key={task.id} className="hover:bg-muted/30">
                               <td className="px-6 py-4">
-                                <div className="flex items-center gap-2">
-                                  {task.is_recurring && <Repeat className="h-4 w-4 text-purple-600 flex-shrink-0" />}
-                                  <span className="text-foreground">{task.title}</span>
+                                <div className="flex items-start gap-2">
+                                  {task.is_recurring && <Repeat className="h-4 w-4 text-purple-600 flex-shrink-0 mt-0.5" />}
+                                  <div>
+                                    <span className="text-foreground">{task.title}</span>
+                                    {task.description && (
+                                      <p className="text-xs text-muted-foreground mt-0.5">{task.description}</p>
+                                    )}
+                                  </div>
                                 </div>
                               </td>
                               <td className="px-6 py-4 text-foreground">
@@ -995,11 +1021,26 @@ export default function App() {
                         <Card key={task.id} className="border-l-4 border-l-blue-400">
                           <CardContent className="p-4">
                             {/* Task Title */}
-                            <div className="flex items-center gap-2 mb-2">
+                            <div className="flex items-center gap-2 mb-1">
                               {task.is_recurring && <Repeat className="h-4 w-4 text-purple-600 flex-shrink-0" />}
                               <h3 className="font-semibold text-base flex-1">{task.title}</h3>
                             </div>
-                            
+
+                            {/* Description toggle */}
+                            {task.description && (
+                              <div className="mb-2">
+                                <button
+                                  className="text-xs text-blue-600 dark:text-blue-400 underline underline-offset-2"
+                                  onClick={() => toggleDescription(task.id)}
+                                >
+                                  {expandedDescriptions.has(task.id) ? t("tasks.hideDescription") : t("tasks.showDescription")}
+                                </button>
+                                {expandedDescriptions.has(task.id) && (
+                                  <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
+                                )}
+                              </div>
+                            )}
+
                             {/* Value and Assignment */}
                             <div className="flex items-center justify-between mb-3">
                               <span className="font-bold text-xl text-orange-600">
@@ -1011,7 +1052,7 @@ export default function App() {
                                 </p>
                               )}
                             </div>
-                            
+
                             {/* Mark Complete Button - only for non-template tasks */}
                             {!(task.is_recurring && !task.parent_task_id) && (
                               <Button
@@ -1045,9 +1086,14 @@ export default function App() {
                           {filteredCompletedTasks.map(task => (
                             <tr key={task.id} className="hover:bg-muted/30">
                               <td className="px-6 py-4">
-                                <div className="flex items-center gap-2">
-                                  {task.is_recurring && <Repeat className="h-4 w-4 text-purple-600 flex-shrink-0" />}
-                                  <span className="text-foreground">{task.title}</span>
+                                <div className="flex items-start gap-2">
+                                  {task.is_recurring && <Repeat className="h-4 w-4 text-purple-600 flex-shrink-0 mt-0.5" />}
+                                  <div>
+                                    <span className="text-foreground">{task.title}</span>
+                                    {task.description && (
+                                      <p className="text-xs text-muted-foreground mt-0.5">{task.description}</p>
+                                    )}
+                                  </div>
                                 </div>
                               </td>
                               <td className="px-6 py-4 text-foreground">
@@ -1075,11 +1121,26 @@ export default function App() {
                         <Card key={task.id} className="border-l-4 border-l-green-400">
                           <CardContent className="p-4">
                             {/* Task Title */}
-                            <div className="flex items-center gap-2 mb-2">
+                            <div className="flex items-center gap-2 mb-1">
                               {task.is_recurring && <Repeat className="h-4 w-4 text-purple-600 flex-shrink-0" />}
                               <h3 className="font-semibold text-base flex-1">{task.title}</h3>
                             </div>
-                            
+
+                            {/* Description toggle */}
+                            {task.description && (
+                              <div className="mb-2">
+                                <button
+                                  className="text-xs text-green-600 dark:text-green-400 underline underline-offset-2"
+                                  onClick={() => toggleDescription(task.id)}
+                                >
+                                  {expandedDescriptions.has(task.id) ? t("tasks.hideDescription") : t("tasks.showDescription")}
+                                </button>
+                                {expandedDescriptions.has(task.id) && (
+                                  <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
+                                )}
+                              </div>
+                            )}
+
                             {/* Value and Assignment */}
                             <div className="flex items-center justify-between mb-3">
                               <span className="font-bold text-xl text-orange-600">
@@ -1091,14 +1152,14 @@ export default function App() {
                                 </p>
                               )}
                             </div>
-                            
+
                             {/* Completed Date */}
                             {task.completedDate && (
                               <p className="text-xs text-muted-foreground mb-3">
                                 {t("app.completedOn")} {task.completedDate}
                               </p>
                             )}
-                            
+
                             {/* Action Button */}
                             <Button
                               onClick={() => handleMarkPaid(task.id)}
@@ -1128,9 +1189,14 @@ export default function App() {
                           {filteredPaidTasks.map(task => (
                             <tr key={task.id} className="hover:bg-muted/30">
                               <td className="px-6 py-4">
-                                <div className="flex items-center gap-2">
-                                  {task.is_recurring && <Repeat className="h-4 w-4 text-purple-600 flex-shrink-0" />}
-                                  <span className="text-foreground">{task.title}</span>
+                                <div className="flex items-start gap-2">
+                                  {task.is_recurring && <Repeat className="h-4 w-4 text-purple-600 flex-shrink-0 mt-0.5" />}
+                                  <div>
+                                    <span className="text-foreground">{task.title}</span>
+                                    {task.description && (
+                                      <p className="text-xs text-muted-foreground mt-0.5">{task.description}</p>
+                                    )}
+                                  </div>
                                 </div>
                               </td>
                               <td className="px-6 py-4 text-foreground">
@@ -1150,11 +1216,26 @@ export default function App() {
                         <Card key={task.id} className="border-l-4 border-l-gray-400">
                           <CardContent className="p-4">
                             {/* Task Title */}
-                            <div className="flex items-center gap-2 mb-2">
+                            <div className="flex items-center gap-2 mb-1">
                               {task.is_recurring && <Repeat className="h-4 w-4 text-purple-600 flex-shrink-0" />}
                               <h3 className="font-semibold text-base flex-1">{task.title}</h3>
                             </div>
-                            
+
+                            {/* Description toggle */}
+                            {task.description && (
+                              <div className="mb-2">
+                                <button
+                                  className="text-xs text-gray-500 dark:text-gray-400 underline underline-offset-2"
+                                  onClick={() => toggleDescription(task.id)}
+                                >
+                                  {expandedDescriptions.has(task.id) ? t("tasks.hideDescription") : t("tasks.showDescription")}
+                                </button>
+                                {expandedDescriptions.has(task.id) && (
+                                  <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
+                                )}
+                              </div>
+                            )}
+
                             {/* Value and Assignment */}
                             <div className="flex items-center justify-between mb-2">
                               <span className="font-bold text-xl text-orange-600">
@@ -1166,7 +1247,7 @@ export default function App() {
                                 </p>
                               )}
                             </div>
-                            
+
                             {/* Completed Date */}
                             {task.completedDate && (
                               <p className="text-xs text-muted-foreground">
