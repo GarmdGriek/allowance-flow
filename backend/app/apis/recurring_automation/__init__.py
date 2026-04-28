@@ -78,6 +78,12 @@ async def process_recurring_tasks() -> RecurringTaskProcessResult:
                 print(f"[recurring_automation] Skipping task {template['id']!r} — invalid recurrence_days: {exc}")
                 details.append(f"Skipped '{template['title']}' - malformed recurrence_days")
                 continue
+
+            # Guard against DB rows with out-of-range values (0–6 only)
+            if not recurrence_days or not all(0 <= d <= 6 for d in recurrence_days):
+                print(f"[recurring_automation] Skipping task {template['id']!r} — recurrence_days out of range: {recurrence_days}")
+                details.append(f"Skipped '{template['title']}' - invalid recurrence_days values")
+                continue
             
             # Check if today is a recurrence day
             if day_number not in recurrence_days:
