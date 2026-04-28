@@ -72,6 +72,16 @@ class TaskResponse(BaseModel):
 
 
 # Helper Functions
+
+def _validate_recurrence_days(days: Optional[List[int]]) -> None:
+    """Raise 400 if any day value is outside 0–6 (Sun–Sat)."""
+    if days and not all(0 <= d <= 6 for d in days):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Recurrence days must be between 0 (Sunday) and 6 (Saturday)",
+        )
+
+
 async def get_user_profile(user_id: str, conn: asyncpg.Connection) -> dict:
     """Get user profile including role and family_id."""
     profile = await conn.fetchrow(
@@ -118,15 +128,15 @@ async def create_task(body: CreateTaskRequest, user: AuthorizedUser) -> TaskResp
         # Verify user is a parent and get family_id
         family_id = await verify_parent_role(user.sub, conn)
 
-        # Validate recurrence_days if recurring
+        # Recurring tasks must declare which days they repeat on
         recurrence_days_json = None
-        if body.is_recurring and body.recurrence_days:
-            # Ensure all days are 0-6
-            if not all(0 <= day <= 6 for day in body.recurrence_days):
+        if body.is_recurring:
+            if not body.recurrence_days:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Recurrence days must be between 0 (Sunday) and 6 (Saturday)"
+                    detail="recurrence_days is required when is_recurring is True",
                 )
+            _validate_recurrence_days(body.recurrence_days)
             recurrence_days_json = json.dumps(body.recurrence_days)
         
         # Create the task
@@ -367,6 +377,7 @@ async def update_task(task_id: str, body: UpdateTaskRequest, user: AuthorizedUse
             
             # Handle recurrence days
             if body.recurrence_days is not None:
+                _validate_recurrence_days(body.recurrence_days)
                 new_recurrence_days = json.dumps(body.recurrence_days) if body.recurrence_days else None
             else:
                 new_recurrence_days = existing_task["recurrence_days"]
@@ -388,6 +399,15 @@ async def update_task(task_id: str, body: UpdateTaskRequest, user: AuthorizedUse
             new_task = updated_task
             
         else:
+            # Archived tasks are immutable — block all further updates.
+            # Archived status is terminal: tasks are soft-deleted and must not
+            # be resurrected as that would corrupt balance and audit records.
+            if existing_task["status"] == "archived":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Archived tasks cannot be modified",
+                )
+
             # REGULAR TASK OR INSTANCE: Check if this is an auto_recreate task.
             # Scheduler-based recurring tasks (is_recurring=TRUE templates) rely on the
             # daily background scheduler to create the next instance on the correct day.
@@ -431,10 +451,12 @@ async def update_task(task_id: str, body: UpdateTaskRequest, user: AuthorizedUse
                     new_parent_task_id = existing_task["parent_task_id"]
                 
                 # Create new task instance
+                # created_by must be the original task owner, not the child who
+                # completed it — completing a task does not transfer authorship.
                 new_task = await conn.fetchrow(
                     """
                     INSERT INTO tasks (
-                        title, description, value, status, created_by, assigned_to_user_id, 
+                        title, description, value, status, created_by, assigned_to_user_id,
                         family_id, is_recurring, recurrence_days, parent_task_id, auto_recreate
                     )
                     VALUES ($1, $2, $3, 'available', $4, $5, $6, $7, $8, $9, $10)
@@ -442,7 +464,7 @@ async def update_task(task_id: str, body: UpdateTaskRequest, user: AuthorizedUse
                               assigned_to_user_id, family_id, created_at, updated_at, completed_at, paid_at,
                               is_recurring, recurrence_days, parent_task_id, auto_recreate
                     """,
-                    new_title, new_description, new_value, user.sub, new_assigned_to,
+                    new_title, new_description, new_value, existing_task["created_by"], new_assigned_to,
                     family_id, new_is_recurring, new_recurrence_days, new_parent_task_id, new_auto_recreate
                 )
             else:
