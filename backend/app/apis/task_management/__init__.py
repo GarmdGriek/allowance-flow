@@ -74,8 +74,13 @@ class TaskResponse(BaseModel):
 # Helper Functions
 
 def _validate_recurrence_days(days: Optional[List[int]]) -> None:
-    """Raise 400 if any day value is outside 0–6 (Sun–Sat)."""
-    if days and not all(0 <= d <= 6 for d in days):
+    """Raise 400 if the list is empty or any value is outside 0–6 (Sun–Sat)."""
+    if not days:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="recurrence_days must contain at least one day",
+        )
+    if not all(0 <= d <= 6 for d in days):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Recurrence days must be between 0 (Sunday) and 6 (Saturday)",
@@ -511,31 +516,33 @@ async def update_task(task_id: str, body: UpdateTaskRequest, user: AuthorizedUse
                 new_status = body.status if body.status is not None else existing_task["status"]
                 new_assigned_to = body.assigned_to_user_id if body.assigned_to_user_id is not None else existing_task["assigned_to_user_id"]
                 new_is_recurring = body.is_recurring if body.is_recurring is not None else existing_task["is_recurring"]
-                
+                # Allow toggling auto_recreate on existing tasks
+                new_auto_recreate = body.auto_recreate if body.auto_recreate is not None else existing_task["auto_recreate"]
+
                 if body.recurrence_days is not None:
                     new_recurrence_days = json.dumps(body.recurrence_days) if body.recurrence_days else None
                 else:
                     new_recurrence_days = existing_task["recurrence_days"]
-                
+
                 # Set completed_by and completed_at if status is changing to completed or paid
                 completed_by = user.sub if new_status in ['completed', 'paid'] else existing_task["completed_by"]
-                
+
                 new_task = await conn.fetchrow(
                     """
                     UPDATE tasks
                     SET title = $1, description = $2, value = $3, status = $4,
                         assigned_to_user_id = $5, is_recurring = $6, recurrence_days = $7,
-                        completed_by = $8, 
+                        completed_by = $8, auto_recreate = $9,
                         completed_at = CASE WHEN $4 IN ('completed', 'paid') THEN COALESCE(completed_at, NOW()) ELSE completed_at END,
                         paid_at = CASE WHEN $4 = 'paid' THEN NOW() ELSE paid_at END,
                         updated_at = NOW()
-                    WHERE id = $9
+                    WHERE id = $10
                     RETURNING id, title, description, value, status, created_by, completed_by,
                               assigned_to_user_id, family_id, created_at, updated_at, completed_at, paid_at,
                               is_recurring, recurrence_days, parent_task_id, auto_recreate
                     """,
                     new_title, new_description, new_value, new_status, new_assigned_to,
-                    new_is_recurring, new_recurrence_days, completed_by, task_id
+                    new_is_recurring, new_recurrence_days, completed_by, new_auto_recreate, task_id
                 )
         
         # Batch-fetch user names in one query
