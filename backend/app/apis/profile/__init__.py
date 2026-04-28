@@ -300,35 +300,34 @@ async def reclaim_parent(user: AuthorizedUser) -> ProfileResponse:
         )
 
 
-@router.put("/update", response_model=ProfileResponse)
-async def update_profile(body: CreateProfileRequest, user: AuthorizedUser) -> ProfileResponse:
-    """Update an existing user profile.
+class UpdateProfileRequest(BaseModel):
+    """Request model for updating profile preferences.
 
-    Allows users to change their role or family.
+    Role and family membership are intentionally excluded — those are managed
+    through family management endpoints and the invite flow to prevent
+    privilege escalation.
+    """
+    currency: str = Field(default="USD", min_length=3, max_length=3)
+
+
+@router.put("/update", response_model=ProfileResponse)
+async def update_profile(body: UpdateProfileRequest, user: AuthorizedUser) -> ProfileResponse:
+    """Update the current user's profile preferences.
+
+    Only currency can be changed here. Role and family changes go through
+    dedicated endpoints (/reclaim-parent, family invites) that enforce
+    the correct authorization checks.
     """
     async with get_pool().acquire() as conn:
-        # Children cannot update their own profile (currency, role, family).
-        # Those are managed by parents via the family management endpoints.
-        current = await conn.fetchrow(
-            "SELECT role FROM user_profiles WHERE user_id = $1", user.sub
-        )
-        if current and current["role"] == "child":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Children cannot update their own profile"
-            )
-
-        # Update the profile
         profile = await conn.fetchrow(
             """
             UPDATE user_profiles
-            SET role = $1, family_id = $2
-            WHERE user_id = $3
+            SET currency = $1, updated_at = NOW()
+            WHERE user_id = $2
             RETURNING user_id, role, family_id, currency, status, created_at, updated_at
             """,
-            body.role,
-            body.family_id,
-            user.sub
+            body.currency,
+            user.sub,
         )
         
         if not profile:
