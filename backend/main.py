@@ -199,7 +199,12 @@ def create_app() -> FastAPI:
     # CORS — allow frontend origin(s)
     allowed_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
     if not allowed_origins:
-        # Default: allow all (safe fallback for dev; set ALLOWED_ORIGINS in prod)
+        if environment == "production":
+            raise RuntimeError(
+                "ALLOWED_ORIGINS must be set in production. "
+                "Example: ALLOWED_ORIGINS=https://your-app.railway.app"
+            )
+        # Dev/staging: allow all origins for local convenience
         allowed_origins = ["*"]
 
     app.add_middleware(

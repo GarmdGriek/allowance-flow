@@ -80,14 +80,14 @@ async def process_recurring_tasks() -> RecurringTaskProcessResult:
                 print(f"Skipping task '{template['title']}' - not scheduled for today")
                 continue
             
-            # Skip if any instance is still active (available or in_progress).
+            # Skip if any instance is still active (available or pending_approval).
             # The previous occurrence must be completed (or paid) before a new
             # one is spawned — the task does not need to be paid, just completed.
             active_instance = await conn.fetchrow(
                 """
                 SELECT id FROM tasks
                 WHERE parent_task_id = $1
-                AND status IN ('available', 'in_progress')
+                AND status IN ('available', 'pending_approval')
                 """,
                 template["id"]
             )
