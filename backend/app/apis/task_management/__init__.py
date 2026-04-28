@@ -82,6 +82,29 @@ def _validate_recurrence_days(days: Optional[List[int]]) -> None:
         )
 
 
+async def _verify_assigned_user_family(
+    assigned_to_user_id: Optional[str],
+    family_id: str,
+    conn: asyncpg.Connection,
+) -> None:
+    """Raise 403 if the target user does not exist or belongs to a different family.
+
+    Prevents a parent from assigning tasks to children outside their family,
+    which would create cross-family data linkage with no valid authorization.
+    """
+    if not assigned_to_user_id:
+        return
+    assigned_family = await conn.fetchval(
+        "SELECT family_id FROM user_profiles WHERE user_id = $1",
+        assigned_to_user_id,
+    )
+    if assigned_family != family_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Assigned user is not a member of your family",
+        )
+
+
 async def get_user_profile(user_id: str, conn: asyncpg.Connection) -> dict:
     """Get user profile including role and family_id."""
     profile = await conn.fetchrow(
@@ -128,6 +151,9 @@ async def create_task(body: CreateTaskRequest, user: AuthorizedUser) -> TaskResp
         # Verify user is a parent and get family_id
         family_id = await verify_parent_role(user.sub, conn)
 
+        # Assigned user must belong to the same family
+        await _verify_assigned_user_family(body.assigned_to_user_id, family_id, conn)
+
         # Recurring tasks must declare which days they repeat on
         recurrence_days_json = None
         if body.is_recurring:
@@ -160,11 +186,17 @@ async def create_task(body: CreateTaskRequest, user: AuthorizedUser) -> TaskResp
             body.auto_recreate
         )
         
-        # Get user names
-        creator_name = await get_user_name(user.sub, conn)
-        assigned_name = None
+        # Batch-fetch names in one query instead of one query per user
+        _name_ids = {user.sub}
         if task["assigned_to_user_id"]:
-            assigned_name = await get_user_name(task["assigned_to_user_id"], conn)
+            _name_ids.add(task["assigned_to_user_id"])
+        _name_rows = await conn.fetch(
+            "SELECT user_id, COALESCE(name, 'Unknown User') AS name FROM user_profiles WHERE user_id = ANY($1)",
+            list(_name_ids),
+        )
+        _name_map = {str(r["user_id"]): r["name"] for r in _name_rows}
+        creator_name = _name_map.get(str(user.sub), "Unknown User")
+        assigned_name = _name_map.get(str(task["assigned_to_user_id"])) if task["assigned_to_user_id"] else None
         
         recurrence_days_list = json.loads(task["recurrence_days"]) if task["recurrence_days"] else None
         
@@ -354,6 +386,10 @@ async def update_task(task_id: str, body: UpdateTaskRequest, user: AuthorizedUse
                     detail="You can only update task status"
                 )
         
+        # If the caller is changing assignment, verify the target is in the same family
+        if body.assigned_to_user_id is not None:
+            await _verify_assigned_user_family(body.assigned_to_user_id, family_id, conn)
+
         # Check if this is a recurring template
         is_template = existing_task["is_recurring"] and existing_task["parent_task_id"] is None
         
@@ -365,7 +401,7 @@ async def update_task(task_id: str, body: UpdateTaskRequest, user: AuthorizedUse
             if body.status is not None:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot change status of recurring template. Edit instances instead."
+                    detail="Cannot change status of a recurring template. Update title, value, or assignment instead, or edit a specific task instance."
                 )
             
             # Prepare updates for template

@@ -6,6 +6,7 @@
 This API provides automation for creating task instances from recurring templates.
 """
 
+import json
 from datetime import datetime, timezone
 
 from app.db import get_pool
@@ -66,14 +67,17 @@ async def process_recurring_tasks() -> RecurringTaskProcessResult:
         tasks_created = 0
         tasks_processed = 0
         details = []
-        
-        import json
-        
+
         for template in recurring_tasks:
             tasks_processed += 1
             raw_days = template["recurrence_days"]
             # asyncpg may return JSONB as a Python list already, or as a string
-            recurrence_days = raw_days if isinstance(raw_days, list) else json.loads(raw_days)
+            try:
+                recurrence_days = raw_days if isinstance(raw_days, list) else json.loads(raw_days)
+            except (json.JSONDecodeError, TypeError) as exc:
+                print(f"[recurring_automation] Skipping task {template['id']!r} — invalid recurrence_days: {exc}")
+                details.append(f"Skipped '{template['title']}' - malformed recurrence_days")
+                continue
             
             # Check if today is a recurrence day
             if day_number not in recurrence_days:
@@ -99,14 +103,16 @@ async def process_recurring_tasks() -> RecurringTaskProcessResult:
 
             # Idempotency guard: don't create a second instance on the same day
             # (e.g. if the automation is triggered more than once).
+            # AT TIME ZONE 'UTC' ensures the comparison uses UTC regardless of
+            # the database server's local timezone setting.
             today_instance = await conn.fetchrow(
                 """
                 SELECT id FROM tasks
                 WHERE parent_task_id = $1
-                AND DATE(created_at) = $2
+                AND DATE(created_at AT TIME ZONE 'UTC') = $2
                 """,
                 template["id"],
-                today_date
+                today_date,
             )
 
             if today_instance:
