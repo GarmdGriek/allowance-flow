@@ -17,7 +17,7 @@ async function getAccessToken(): Promise<string | null> {
   // OAuth callback (it does NOT consume the neon_auth_session_verifier).
   const jwt = await tryGetJwt();
   if (jwt) {
-    console.log("[auth] using JWT token");
+    // console.log("[auth] using JWT token"); // removed: avoid auth noise in prod
     return jwt;
   }
 
@@ -31,9 +31,6 @@ async function getAccessToken(): Promise<string | null> {
 
   // Fall back to opaque session token
   const session = await authClient.getSession();
-  if (session?.data) {
-    console.log("[auth] full session data:", JSON.stringify(session.data));
-  }
   return (session?.data as any)?.session?.token ?? null;
 }
 
@@ -62,7 +59,6 @@ async function tryGetJwt(): Promise<string | null> {
             const data = JSON.parse(text);
             const token: string | undefined = data?.token ?? data?.accessToken ?? data?.idToken;
             if (token && token.split(".").length === 3) {
-              console.log(`[auth] got JWT from ${endpoint}`);
               cachedJwt = token;
               cachedJwtExpiry = Date.now() + 4 * 60 * 1000; // 4 minutes
               return token;
