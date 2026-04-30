@@ -6,10 +6,6 @@ from typing import Any
 from pydantic import BaseModel
 
 from .extensions.auth import AuthConfig
-from .extensions.firebase_auth import (
-    FirebaseExtensionConfig,
-    get_firebase_auth_config,
-)
 from .extensions.google_scheduler_auth import (
     get_google_scheduler_auth_config,
 )
@@ -26,7 +22,6 @@ class ExtensionType(str, Enum):
     """Type of extension."""
 
     shadcn = "shadcn"
-    firebase_auth = "firebase-auth"
     stack_auth = "stack-auth"
     neon_database = "neon-database"
     mcp = "mcp"
@@ -106,13 +101,6 @@ def get_extension(cfg: Config, name: ExtensionType) -> Extension | None:
     return extensions[0]
 
 
-def get_firebase_extension_config(cfg: Config) -> FirebaseExtensionConfig | None:
-    extension = get_extension(cfg, ExtensionType.firebase_auth)
-    if not extension or not extension.config:
-        return None
-    return FirebaseExtensionConfig(**extension.config)
-
-
 def get_stack_auth_extension_config(cfg: Config) -> StackAuthExtensionConfig | None:
     extension = get_extension(cfg, ExtensionType.stack_auth)
     if not extension or not extension.config:
@@ -133,10 +121,6 @@ def parse_auth_configs(cfg: Config) -> list[AuthConfig]:
             jwks_url=cfg.NEON_AUTH_JWKS_URL,
             audience=None,
         ))
-
-    # Add firebase auth config if extension is enabled
-    if firebase_auth_cfg := get_firebase_extension_config(cfg):
-        auth_configs.append(get_firebase_auth_config(firebase_auth_cfg))
 
     return auth_configs
 
