@@ -16,7 +16,7 @@ type UserRole = "parent" | "child";
 export default function SetupProfile() {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { data: session } = authClient.useSession();
+  const { data: session, isPending } = authClient.useSession();
   const user = session?.user ?? null;
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
@@ -102,6 +102,11 @@ export default function SetupProfile() {
     const randomId = `family_${Math.random().toString(36).substring(2, 10)}`;
     setFamilyId(randomId);
   };
+
+  // Wait for session to load before deciding whether the user is signed in.
+  // Without this guard, the first render sees user=null and immediately bounces
+  // to /auth/sign-up even when the user just completed signup and is authenticated.
+  if (isPending) return null;
 
   // If not signed in: show invite landing or redirect to sign-up
   if (!user) {

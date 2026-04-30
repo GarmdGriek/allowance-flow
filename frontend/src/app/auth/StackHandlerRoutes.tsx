@@ -284,7 +284,8 @@ export const StackHandlerRoutes = () => {
       if (result.error) {
         setError(result.error.message || "Sign up failed. Please try again.");
       } else {
-        navigate(next, { replace: true });
+        // New email signups always need profile setup, regardless of where they came from
+        navigate("/setup-profile", { replace: true });
       }
     } catch (err: any) {
       setError(err.message || "Sign up failed");
