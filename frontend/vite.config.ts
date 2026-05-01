@@ -38,7 +38,6 @@ export default defineConfig({
 				manualChunks: (id) => {
 					if (!id.includes("node_modules")) return;
 					if (id.includes("@radix-ui")) return "radix";
-					if (id.includes("@sentry")) return "sentry";
 					return "vendor";
 				},
 			},
