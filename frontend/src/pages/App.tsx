@@ -180,7 +180,14 @@ export default function App() {
       });
       
       setTasks(transformedTasks);
-      
+
+      try {
+        localStorage.setItem(
+          `allowance-flow:family:${user.id}`,
+          JSON.stringify({ children: transformedChildren, tasks: transformedTasks })
+        );
+      } catch {}
+
       // Set first child as selected if available
       if (transformedChildren.length > 0) {
         setSelectedChild(transformedChildren[0].id);
@@ -248,6 +255,15 @@ export default function App() {
           // Profile exists — fire family data fetch immediately for parents
           // before clearing the loading gate so both requests are in-flight together.
           if (profileData.role === "parent") {
+            // Render from cache immediately; fetchFamilyData refreshes in the background.
+            try {
+              const raw = localStorage.getItem(`allowance-flow:family:${user.id}`);
+              if (raw) {
+                const cached = JSON.parse(raw);
+                setChildren(cached.children);
+                setTasks(cached.tasks);
+              }
+            } catch {}
             fetchFamilyData();
             apiClient.process_recurring_tasks().catch((err) =>
               console.warn("Recurring task automation skipped:", err)
@@ -732,7 +748,7 @@ export default function App() {
               <div>
                 <h2 className="text-2xl font-semibold text-foreground mb-4">{t("app.childrenAllowances")}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {(isLoadingData || isCheckingProfile) ? (
+                  {(isCheckingProfile || (isLoadingData && children.length === 0)) ? (
                     [0, 1].map(i => (
                       <div key={i} className="bg-card border border-border rounded-xl p-6 animate-pulse">
                         <div className="flex items-center gap-3 mb-4">
