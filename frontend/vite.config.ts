@@ -1,7 +1,7 @@
 import react from "@vitejs/plugin-react";
 import "dotenv/config";
 import path from "node:path";
-import { defineConfig, splitVendorChunkPlugin } from "vite";
+import { defineConfig } from "vite";
 import injectHTML from "vite-plugin-html-inject";
 import tsConfigPaths from "vite-tsconfig-paths";
 
@@ -31,7 +31,23 @@ const buildVariables = () => {
 // https://vite.dev/config/
 export default defineConfig({
 	define: buildVariables(),
-	plugins: [react(), splitVendorChunkPlugin(), tsConfigPaths(), injectHTML()],
+	plugins: [react(), tsConfigPaths(), injectHTML()],
+	build: {
+		rollupOptions: {
+			output: {
+				manualChunks: (id) => {
+					if (!id.includes("node_modules")) return;
+					if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id)) return "react";
+					if (id.includes("@chakra-ui") || id.includes("@emotion")) return "chakra";
+					if (id.includes("@radix-ui")) return "radix";
+					if (id.includes("recharts") || id.includes("d3-")) return "recharts";
+					if (id.includes("framer-motion")) return "framer";
+					if (id.includes("@sentry")) return "sentry";
+					return "vendor";
+				},
+			},
+		},
+	},
 	server: {
 		proxy: {
 			"/api": {
