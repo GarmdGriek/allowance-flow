@@ -180,7 +180,14 @@ export default function App() {
       });
       
       setTasks(transformedTasks);
-      
+
+      try {
+        localStorage.setItem(
+          `allowance-flow:family:${user.id}`,
+          JSON.stringify({ children: transformedChildren, tasks: transformedTasks })
+        );
+      } catch {}
+
       // Set first child as selected if available
       if (transformedChildren.length > 0) {
         setSelectedChild(transformedChildren[0].id);
@@ -245,7 +252,22 @@ export default function App() {
           // Empty body — treat same as 404
           navigate("/setup-profile");
         } else {
-          // Profile exists, store it and update UI
+          // Profile exists — for parents, load cached data immediately and fire
+          // the API fetch in the background (stale-while-revalidate).
+          if (profileData.role === "parent") {
+            try {
+              const raw = localStorage.getItem(`allowance-flow:family:${user.id}`);
+              if (raw) {
+                const cached = JSON.parse(raw);
+                setChildren(cached.children);
+                setTasks(cached.tasks);
+              }
+            } catch {}
+            fetchFamilyData();
+            apiClient.process_recurring_tasks().catch((err) =>
+              console.warn("Recurring task automation skipped:", err)
+            );
+          }
           setProfile(profileData);
           setUserRole(profileData.role);
           setCurrencySymbol(getCurrencySymbol(profileData.currency));
@@ -262,30 +284,6 @@ export default function App() {
       checkProfile();
     }
   }, [user, navigate, isCheckingProfile]);
-
-  // Fetch family data when profile is loaded and user is a parent
-  useEffect(() => {
-    if (profile && userRole === "parent") {
-      fetchFamilyData();
-      // Silently trigger recurring task automation so templates spawn today's instances.
-      // The endpoint is idempotent — running it multiple times per day is safe.
-      apiClient.process_recurring_tasks().catch((err) =>
-        console.warn("Recurring task automation skipped:", err)
-      );
-    }
-  }, [profile, userRole]);
-
-  // Show loading state while checking profile
-  if (isCheckingProfile) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite] text-primary" />
-          <p className="mt-4 text-muted-foreground">{t("app.loading")}</p>
-        </div>
-      </div>
-    );
-  }
 
   // Recovery banner: real-email user stuck with child role
   // Virtual child emails end in .local — if it's a normal email the account
@@ -749,7 +747,24 @@ export default function App() {
               <div>
                 <h2 className="text-2xl font-semibold text-foreground mb-4">{t("app.childrenAllowances")}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {children.map(child => (
+                  {(isCheckingProfile || (isLoadingData && children.length === 0)) ? (
+                    [0, 1].map(i => (
+                      <div key={i} className="bg-card border border-border rounded-xl p-6 animate-pulse">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-12 h-12 bg-muted rounded-full" />
+                          <div className="h-5 bg-muted rounded w-28" />
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[0, 1, 2].map(j => (
+                            <div key={j} className="space-y-1">
+                              <div className="h-3 bg-muted rounded w-14" />
+                              <div className="h-7 bg-muted rounded w-16" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  ) : children.map(child => (
                     <div key={child.id} className="bg-card border border-border rounded-xl p-6 group">
                       <div className="flex items-center gap-3 mb-4">
                         <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
