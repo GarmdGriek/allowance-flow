@@ -38,6 +38,12 @@ export default defineConfig({
 				manualChunks: (id) => {
 					if (!id.includes("node_modules")) return;
 					if (id.includes("@radix-ui")) return "radix";
+					// Note: do NOT split react/react-dom into their own chunk — this caused
+					// a PureComponent-undefined load-order crash (see commit 7b92482).
+					if (id.includes("react-router") || id.includes("@remix-run/router") || id.includes("/history/")) return "router";
+					if (id.includes("i18next") || id.includes("react-i18next")) return "i18n";
+					if (id.includes("better-auth")) return "auth";
+					if (id.includes("lucide-react")) return "icons";
 					return "vendor";
 				},
 			},

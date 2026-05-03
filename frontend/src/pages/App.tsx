@@ -4,13 +4,14 @@
 
 
 
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useUserGuardContext } from "app/auth";
 import { DollarSign, CheckCircle, Clock, XCircle, Plus, User, Settings, Repeat, Eye, Edit2, Check, X, Copy, QrCode } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
 import { apiClient } from "app";
+
+const VippsQrDialog = lazy(() => import("components/VippsQrDialog"));
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -70,8 +71,16 @@ export default function App() {
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [currencySymbol, setCurrencySymbol] = useState("$");
   const [activeTab, setActiveTab] = useState("available");
-  const [children, setChildren] = useState<Child[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [cachedFamily] = useState(() => {
+    try {
+      const raw = localStorage.getItem(`allowance-flow:family:${user.id}`);
+      return raw ? (JSON.parse(raw) as { children: Child[]; tasks: Task[] }) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [children, setChildren] = useState<Child[]>(cachedFamily?.children ?? []);
+  const [tasks, setTasks] = useState<Task[]>(cachedFamily?.tasks ?? []);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [taskViewTab, setTaskViewTab] = useState<"all" | "recurring">("all"); // New state for tab selection
   const [previewActiveTab, setPreviewActiveTab] = useState<string>("available");
@@ -252,21 +261,19 @@ export default function App() {
           // Empty body — treat same as 404
           navigate("/setup-profile");
         } else {
-          // Profile exists — for parents, load cached data immediately and fire
-          // the API fetch in the background (stale-while-revalidate).
+          // Profile exists — cached family data is hydrated synchronously in useState
+          // (above), so the LCP element can paint before this fetch resolves.
           if (profileData.role === "parent") {
-            try {
-              const raw = localStorage.getItem(`allowance-flow:family:${user.id}`);
-              if (raw) {
-                const cached = JSON.parse(raw);
-                setChildren(cached.children);
-                setTasks(cached.tasks);
-              }
-            } catch {}
             fetchFamilyData();
-            apiClient.process_recurring_tasks().catch((err) =>
-              console.warn("Recurring task automation skipped:", err)
-            );
+            // Defer recurring-task automation past LCP — it competes for the
+            // same connection pool as the family-data fetch above.
+            const idle = (window as any).requestIdleCallback
+              ?? ((cb: () => void) => setTimeout(cb, 2000));
+            idle(() => {
+              apiClient.process_recurring_tasks().catch((err) =>
+                console.warn("Recurring task automation skipped:", err)
+              );
+            });
           }
           setProfile(profileData);
           setUserRole(profileData.role);
@@ -747,7 +754,7 @@ export default function App() {
               <div>
                 <h2 className="text-2xl font-semibold text-foreground mb-4">{t("app.childrenAllowances")}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {(isCheckingProfile || (isLoadingData && children.length === 0)) ? (
+                  {((isCheckingProfile || isLoadingData) && children.length === 0) ? (
                     [0, 1].map(i => (
                       <div key={i} className="bg-card border border-border rounded-xl p-6 animate-pulse">
                         <div className="flex items-center gap-3 mb-4">
@@ -1347,47 +1354,16 @@ export default function App() {
         </DialogContent>
       </Dialog>
 
-      {/* Vipps QR Dialog */}
-      <Dialog open={qrChild !== null} onOpenChange={() => { setQrChild(null); setCopiedQrPhone(false); }}>
-        <DialogContent className="max-w-xs w-full mx-auto">
-          <DialogHeader>
-            <DialogTitle>{qrChild?.name} – Vipps</DialogTitle>
-          </DialogHeader>
-          {qrChild?.phone_number && (
-            <div className="flex flex-col items-center gap-4 py-2">
-              <div className="p-4 bg-white rounded-xl border">
-                <QRCodeSVG
-                  value={`https://qr.vipps.no/28/2/01/031/47${qrChild.phone_number.replace(/\s/g, '')}`}
-                  size={200}
-                  bgColor="#ffffff"
-                  fgColor="#ff5b24"
-                  level="M"
-                />
-              </div>
-              <p className="text-sm text-muted-foreground text-center">{t("toasts.vippsQrHint")}</p>
-              <p className="text-2xl font-mono tracking-widest">
-                {qrChild.phone_number.replace(/(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4')}
-              </p>
-              <Button
-                className="w-full"
-                variant="outline"
-                onClick={() => {
-                  navigator.clipboard.writeText(qrChild.phone_number!.replace(/\s/g, '')).then(() => {
-                    setCopiedQrPhone(true);
-                    setTimeout(() => setCopiedQrPhone(false), 2000);
-                  });
-                }}
-              >
-                {copiedQrPhone ? (
-                  <><Check className="w-4 h-4 mr-2 text-green-600" />{t("toasts.phoneNumberCopied")}</>
-                ) : (
-                  <><Copy className="w-4 h-4 mr-2" />{t("toasts.copyVippsNumber")}</>
-                )}
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {qrChild && (
+        <Suspense fallback={null}>
+          <VippsQrDialog
+            child={qrChild}
+            copied={copiedQrPhone}
+            onCopiedChange={setCopiedQrPhone}
+            onClose={() => { setQrChild(null); setCopiedQrPhone(false); }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
