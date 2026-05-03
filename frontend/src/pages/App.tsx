@@ -65,22 +65,31 @@ export default function App() {
   const navigate = useNavigate();
   const { user } = useUserGuardContext();
   const { t } = useTranslation();
-  const [isCheckingProfile, setIsCheckingProfile] = useState(true);
-  const [userRole, setUserRole] = useState<UserRole>("parent");
-  const [selectedChild, setSelectedChild] = useState<string>("child1");
-  const [profile, setProfile] = useState<ProfileResponse | null>(null);
-  const [currencySymbol, setCurrencySymbol] = useState("$");
-  const [activeTab, setActiveTab] = useState("available");
   const [cachedFamily] = useState(() => {
     try {
       const raw = localStorage.getItem(`allowance-flow:family:${user.id}`);
-      return raw ? (JSON.parse(raw) as { children: Child[]; tasks: Task[] }) : null;
+      return raw
+        ? (JSON.parse(raw) as {
+            children: Child[];
+            tasks: Task[];
+            currency?: string;
+            role?: UserRole;
+          })
+        : null;
     } catch {
       return null;
     }
   });
+  const [isCheckingProfile, setIsCheckingProfile] = useState(true);
+  const [userRole, setUserRole] = useState<UserRole>(cachedFamily?.role ?? "parent");
+  const [selectedChild, setSelectedChild] = useState<string>("child1");
+  const [profile, setProfile] = useState<ProfileResponse | null>(null);
+  const [activeTab, setActiveTab] = useState("available");
   const [children, setChildren] = useState<Child[]>(cachedFamily?.children ?? []);
   const [tasks, setTasks] = useState<Task[]>(cachedFamily?.tasks ?? []);
+  const [currencySymbol, setCurrencySymbol] = useState(
+    cachedFamily?.currency ? getCurrencySymbol(cachedFamily.currency) : "$",
+  );
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [taskViewTab, setTaskViewTab] = useState<"all" | "recurring">("all"); // New state for tab selection
   const [previewActiveTab, setPreviewActiveTab] = useState<string>("available");
@@ -191,9 +200,24 @@ export default function App() {
       setTasks(transformedTasks);
 
       try {
+        // Persist the currency/role alongside the family data so the next
+        // first paint matches reality — otherwise amounts flash $ before the
+        // profile fetch resolves and we re-render with the right symbol.
+        const existing = (() => {
+          try {
+            const raw = localStorage.getItem(`allowance-flow:family:${user.id}`);
+            return raw ? JSON.parse(raw) : {};
+          } catch {
+            return {};
+          }
+        })();
         localStorage.setItem(
           `allowance-flow:family:${user.id}`,
-          JSON.stringify({ children: transformedChildren, tasks: transformedTasks })
+          JSON.stringify({
+            ...existing,
+            children: transformedChildren,
+            tasks: transformedTasks,
+          })
         );
       } catch {}
 
@@ -278,6 +302,20 @@ export default function App() {
           setProfile(profileData);
           setUserRole(profileData.role);
           setCurrencySymbol(getCurrencySymbol(profileData.currency));
+          // Persist currency/role into the family cache so the next page load
+          // hydrates the correct symbol on first paint.
+          try {
+            const raw = localStorage.getItem(`allowance-flow:family:${user.id}`);
+            const existing = raw ? JSON.parse(raw) : {};
+            localStorage.setItem(
+              `allowance-flow:family:${user.id}`,
+              JSON.stringify({
+                ...existing,
+                currency: profileData.currency,
+                role: profileData.role,
+              }),
+            );
+          } catch {}
           setIsCheckingProfile(false);
         }
       } catch (error) {
